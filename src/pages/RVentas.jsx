@@ -218,7 +218,7 @@ const RVentas = () => {
         <div className="bg-surface p-6 rounded-xl border border-stone-800">
           <h3 className="text-lg font-semibold text-textLight mb-4">Top 10 Más Vendidos</h3>
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
                 <XAxis type="number" stroke="#94a3b8" fontSize={12} tickFormatter={(val) => val.toFixed(0)} />

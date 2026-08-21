@@ -146,7 +146,7 @@ const Reports = () => {
               <h3 className="text-lg font-semibold text-textLight mb-6">Evolución de Ventas y Ganancias</h3>
               <div className="h-72 w-full flex-1">
                 {data.timeline.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                     <LineChart data={data.timeline.map(t => ({...t, displayDate: period === 'daily' ? `${t._id}:00` : t._id}))}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                       <XAxis dataKey="displayDate" stroke="#94a3b8" fontSize={12} />
@@ -171,7 +171,7 @@ const Reports = () => {
                <h3 className="text-lg font-semibold text-textLight mb-4 flex items-center">Métodos de Pago</h3>
                <div className="h-64 w-full relative">
                   {data.ventasPorMetodoPago.length > 0 ? (
-                     <ResponsiveContainer width="100%" height="100%">
+                     <ResponsiveContainer width="100%" height="100%" minHeight={200}>
                         <PieChart>
                            <Pie
                               data={data.ventasPorMetodoPago}

@@ -209,7 +209,7 @@ const Dashboard = () => {
             <span className="text-[10px] text-textMuted bg-stone-800/50 px-2 py-1 rounded-full uppercase tracking-wider">Hoy</span>
           </div>
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
               <BarChart data={summary ? summary.chartData : []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                 <XAxis dataKey="hora" stroke="#475569" fontSize={11} tickLine={false} axisLine={false} />
@@ -312,7 +312,7 @@ const Dashboard = () => {
                 {recentSales.slice(0, 5).map((s) => (
                   <tr key={s._id} className="hover:bg-stone-800/20 transition-colors">
                     <td className="py-3 text-textLight font-mono text-xs">{s.numeroTicket}</td>
-                    <td className="py-3 text-textLight text-sm">{s.cliente || '\u2014'}</td>
+                    <td className="py-3 text-textLight text-sm">{s.cliente?.nombre || '\u2014'}</td>
                     <td className="py-3 text-textLight font-bold text-right">{formatCurrency(s.totalFinal)}</td>
                     <td className="py-3 text-textMuted text-right hidden sm:table-cell capitalize">{s.metodoPago}</td>
                     <td className="py-3 text-textMuted text-xs text-right hidden sm:table-cell">

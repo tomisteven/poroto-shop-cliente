@@ -275,7 +275,7 @@ const Statistics = () => {
             Inversión por Categoría
           </h3>
           <div className="flex-1 w-full h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={200}>
               <PieChart>
                 <Pie
                   data={stats?.productos.breakdown}
