@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import {
   TrendingUp, ShoppingCart, DollarSign, Receipt, AlertTriangle, Package,
   PackageX, ShoppingBag, Clock, ArrowRight, Sparkles, ChevronRight,
-  Store, AlertCircle, Globe, Share2
+  Store, AlertCircle, Globe, Share2, BarChart3
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -35,7 +35,7 @@ const Card = ({ icon: Icon, label, value, sub, gradient }) => (
       </div>
       {sub !== undefined && (
         <span className={'text-xs font-bold px-2 py-1 rounded-full ' + (sub >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400')}>
-          {sub > 0 ? '+' : ''}{sub}
+          {sub > 0 ? '+' : ''}{sub}%
         </span>
       )}
     </div>
@@ -203,7 +203,7 @@ const Dashboard = () => {
         <div className="lg:col-span-2 bg-surface rounded-2xl border border-stone-800/80 p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-base font-bold text-textLight flex items-center gap-2">
-              <BarChart size={18} className="text-primary" />
+              <BarChart3 size={18} className="text-primary" />
               Ventas por Hora
             </h3>
             <span className="text-[10px] text-textMuted bg-stone-800/50 px-2 py-1 rounded-full uppercase tracking-wider">Hoy</span>
