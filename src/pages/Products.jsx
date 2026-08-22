@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import api from '../api/axios';
 import { useDebounce } from '../hooks/useDebounce';
 import { AuthContext } from '../context/AuthContext';
-import { PlusCircle, Search, Edit2, Trash2, X, Image as ImageIcon, PackagePlus, Plus, Minus, Download, CheckSquare, Square, ChevronDown } from 'lucide-react';
+import { PlusCircle, Search, Edit2, Trash2, X, PackagePlus, Plus, Minus, Download, CheckSquare, Square, ChevronDown, Sparkles, Loader, Puzzle, Trash } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
@@ -22,6 +22,7 @@ const Products = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const debouncedSearch = useDebounce(searchTerm, 300);
   const [filterWithoutMovement, setFilterWithoutMovement] = useState(false);
+  const [filterOnlyCombos, setFilterOnlyCombos] = useState(false);
   const [withoutMovementData, setWithoutMovementData] = useState(null);
   const [loadingWM, setLoadingWM] = useState(false);
 
@@ -29,22 +30,39 @@ const Products = () => {
     ? new Set(withoutMovementData.products.map(p => p._id))
     : new Set();
 
-  const displayProducts = filterWithoutMovement
-    ? products.filter(p => withoutMovementIds.has(p._id))
-    : products;
+  const displayProducts = products.filter(p => {
+    if (filterOnlyCombos && !p.esCombo) return false;
+    if (filterWithoutMovement && !withoutMovementIds.has(p._id)) return false;
+    return true;
+  });
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
-    nombre: '', sku: '', categoria: '', precioCompra: 0, precioVenta: 0, 
+    nombre: '', descripcion: '', sku: '', categoria: '', precioCompra: 0, precioVenta: 0, 
     stock: 0, stockMinimo: 5, unidadMedida: 'unidad', proveedor: '', imagen: '',
-    esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: 42
+    esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: 42,
+    notasIA: ''
   });
 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [stockFormData, setStockFormData] = useState({ tipo: 'entrada', cantidad: '', motivo: '' });
   const [stockProduct, setStockProduct] = useState(null);
+
+  // Combo Manual
+  const [isComboModalOpen, setIsComboModalOpen] = useState(false);
+  const [comboForm, setComboForm] = useState({
+    nombre: '',
+    descripcion: '',
+    sku: '',
+    categoria: '',
+    descuentoPorcentaje: 10,
+    items: [], // [{productoId, cantidad}]
+    imagen: ''
+  });
+  const [comboSearch, setComboSearch] = useState('');
+  const [comboLoading, setComboLoading] = useState(false);
 
   // Selección masiva
   const [selectedIds, setSelectedIds] = useState([]);
@@ -73,7 +91,7 @@ const Products = () => {
     }
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       let url = '/products?';
@@ -87,7 +105,7 @@ const Products = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearch, selectedCategory]);
 
   const calculateMargin = (compra, venta) => {
     if (!compra || compra === 0) return 0;
@@ -134,10 +152,11 @@ const Products = () => {
   const openNewModal = () => {
     setEditingId(null);
     setFormData({
-      nombre: '', sku: '', categoria: categories[0]?._id || '', 
+      nombre: '', descripcion: '', sku: '', categoria: categories[0]?._id || '', 
       precioCompra: 0, precioVenta: 0, stock: 0, stockMinimo: 5, 
       unidadMedida: 'unidad', proveedor: '', imagen: '',
-      esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: 42
+      esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: 42,
+      notasIA: ''
     });
     setIsModalOpen(true);
   };
@@ -145,12 +164,13 @@ const Products = () => {
   const openEditModal = (p) => {
     setEditingId(p._id);
     setFormData({
-      nombre: p.nombre, sku: p.sku, categoria: p.categoria._id, 
+      nombre: p.nombre, descripcion: p.descripcion || '', sku: p.sku, categoria: p.categoria._id, 
       precioCompra: p.precioCompra, precioVenta: p.precioVenta, 
       stock: p.stock, stockMinimo: p.stockMinimo, 
       unidadMedida: p.unidadMedida, proveedor: p.proveedor || '', imagen: p.imagen || '',
       esGenerico: p.esGenerico || false, esBolsaAlimento: p.esBolsaAlimento || false, 
-      kilosPorBolsa: p.kilosPorBolsa || '', precioKilo: p.precioKilo || '', margenSuelto: p.margenSuelto || 42
+      kilosPorBolsa: p.kilosPorBolsa || '', precioKilo: p.precioKilo || '', margenSuelto: p.margenSuelto || 42,
+      notasIA: p.notasIA || ''
     });
     setIsModalOpen(true);
   };
@@ -172,13 +192,33 @@ const Products = () => {
     }
   };
 
+  const [loadingDesc, setLoadingDesc] = useState(false);
+
+  const handleGenerateDescription = async () => {
+    const nombre = formData.nombre.trim();
+    if (!nombre) return toast.error('Escribí el nombre del producto primero');
+    setLoadingDesc(true);
+    try {
+      const { data } = await api.post('/recommendations/generate-description', {
+        nombre,
+        notas: formData.notasIA,
+      });
+      setFormData((prev) => ({ ...prev, descripcion: data.descripcion }));
+      toast.success('Descripción generada');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error al generar descripción');
+    } finally {
+      setLoadingDesc(false);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (window.confirm('¿Estás seguro de eliminar este producto?')) {
       try {
         await api.delete(`/products/${id}`);
         toast.success('Producto eliminado');
         fetchProducts();
-      } catch (error) {
+      } catch {
         toast.error('Error al eliminar');
       }
     }
@@ -304,8 +344,68 @@ const Products = () => {
       toast.error(error.response?.data?.message || 'Error al ejecutar acción masiva');
     } finally {
       setLoadingBulk(false);
+    setLoadingBulk(false);
     }
   };
+
+  // ── Combo Manual ────────────────────────────────────────────────
+  const openComboModal = () => {
+    setComboForm({
+      nombre: '',
+      descripcion: '',
+      sku: '',
+      categoria: '', // Se auto-asigna al crear (categoría del primer item)
+      descuentoPorcentaje: 10,
+      items: [],
+      imagen: ''
+    });
+    setComboSearch('');
+    setIsComboModalOpen(true);
+  };
+
+  const addComboItem = (product) => {
+    if (comboForm.items.some(i => i.productoId === product._id)) return toast.error('Ya está en el combo');
+    setComboForm(prev => ({
+      ...prev,
+      items: [...prev.items, { productoId: product._id, cantidad: 1 }]
+    }));
+  };
+
+  const removeComboItem = (index) => {
+    setComboForm(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+  };
+
+  const handleComboSubmit = async (e) => {
+    e.preventDefault();
+    if (comboForm.items.length < 2) return toast.error('Mínimo 2 productos para un combo');
+    if (!comboForm.nombre.trim()) return toast.error('Nombre requerido');
+
+    setComboLoading(true);
+    try {
+      const items = comboForm.items.map(i => ({
+        producto: i.productoId,
+        cantidad: i.cantidad
+      }));
+      const res = await api.post('/ai-features/crear-combo', {
+        nombre: comboForm.nombre,
+        descripcion: comboForm.descripcion,
+        items,
+        descuentoPorcentaje: comboForm.descuentoPorcentaje,
+      });
+      toast.success(`✅ ${res.data.combo.nombre} creado - Margen: ${res.data.stats.margenPorcentaje}%`);
+      setIsComboModalOpen(false);
+      fetchProducts();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error al crear combo');
+    } finally {
+      setComboLoading(false);
+    }
+  };
+
+  const filteredComboProducts = products.filter(p =>
+    p.nombre.toLowerCase().includes(comboSearch.toLowerCase()) ||
+    p.sku.toLowerCase().includes(comboSearch.toLowerCase())
+  );
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -326,9 +426,9 @@ const Products = () => {
                 try {
                   const { data } = await api.get('/products/without-movement?months=3');
                   setWithoutMovementData(data);
-                } catch (error) {
-                  toast.error('Error al cargar');
-                  return;
+} catch {
+        toast.error('Error al cargar');
+        return;
                 } finally {
                   setLoadingWM(false);
                 }
@@ -348,24 +448,45 @@ const Products = () => {
             )}
           </button>
         </div>
-        <div className="flex items-center gap-3">
-           <button 
-             onClick={exportToCSV}
-             className="bg-stone-800 hover:bg-stone-700 text-textLight px-4 py-2 rounded-lg transition-colors flex items-center border border-stone-700 shadow-sm"
-             title="Exportar inventario a Excel/CSV"
-           >
-             <Download size={18} className="mr-2 text-emerald-400" />
-             Exportar
-           </button>
-           {(user?.rol === 'admin') && (
-              <button 
-                onClick={openNewModal}
-                className="bg-primary hover:bg-primaryDark text-white px-4 py-2 rounded-lg transition-colors flex items-center shadow-lg shadow-primary/20"
-              >
-                <PlusCircle size={18} className="mr-2" />
-                Nuevo Producto
-              </button>
-           )}
+<div className="flex items-center gap-3">
+            <button 
+              onClick={exportToCSV}
+              className="bg-stone-800 hover:bg-stone-700 text-textLight px-4 py-2 rounded-lg transition-colors flex items-center border border-stone-700 shadow-sm"
+              title="Exportar inventario a Excel/CSV"
+            >
+              <Download size={18} className="mr-2 text-emerald-400" />
+              Exportar
+            </button>
+            <button
+              onClick={() => setFilterOnlyCombos(!filterOnlyCombos)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-colors ${
+                filterOnlyCombos
+                  ? 'bg-purple-600 text-white shadow-purple-500/20'
+                  : 'bg-stone-800 hover:bg-stone-700 text-textMuted border border-stone-700'
+              }`}
+              title="Filtrar solo combos"
+            >
+              <Puzzle size={14} className="mr-1" />
+              Combos
+            </button>
+            {(user?.rol === 'admin') && (
+               <>
+                 <button 
+                   onClick={openComboModal}
+                   className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center shadow-lg shadow-purple-500/20"
+                 >
+                   <Puzzle size={18} className="mr-2" />
+                   Crear Combo
+                 </button>
+                 <button 
+                   onClick={openNewModal}
+                   className="bg-primary hover:bg-primaryDark text-white px-4 py-2 rounded-lg transition-colors flex items-center shadow-lg shadow-primary/20"
+                 >
+                   <PlusCircle size={18} className="mr-2" />
+                   Nuevo Producto
+                 </button>
+               </>
+            )}
         </div>
       </div>
 
@@ -479,15 +600,16 @@ const Products = () => {
                 <th className="px-4 py-4">Stock</th>
                 <th className="px-4 py-4 text-right">Compra</th>
                 <th className="px-4 py-4 text-right">Venta</th>
+                <th className="px-4 py-4 text-right">P. Kilo</th>
                 <th className="px-4 py-4 text-right">Margen</th>
                 <th className="px-4 py-4 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-800">
               {loading ? (
-                <tr><td colSpan="9" className="text-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></td></tr>
+                <tr><td colSpan="10" className="text-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></td></tr>
               ) : displayProducts.length === 0 ? (
-                <tr><td colSpan="9" className="text-center py-10 text-textMuted">{filterWithoutMovement ? 'No hay productos sin movimiento en esta categoría.' : 'No se encontraron productos.'}</td></tr>
+                <tr><td colSpan="10" className="text-center py-10 text-textMuted">{filterWithoutMovement ? 'No hay productos sin movimiento en esta categoría.' : 'No se encontraron productos.'}</td></tr>
               ) : (
                 displayProducts.map((p) => {
                    const isSelected = selectedIds.includes(p._id);
@@ -498,13 +620,11 @@ const Products = () => {
                          {isSelected ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} />}
                        </button>
                      </td>
-                     <td className="px-4 py-4 font-medium flex items-center">
-                       {p.imagen ? (
-                         <img src={p.imagen} alt={p.nombre} className="w-8 h-8 rounded shrink-0 mr-3 object-cover" />
-                       ) : (
-                         <div className="w-8 h-8 rounded shrink-0 mr-3 bg-stone-800 flex items-center justify-center text-stone-500"><ImageIcon size={16}/></div>
-                       )}
-                       <span className="truncate max-w-[200px]">{p.nombre}</span>
+                      <td className="px-4 py-4 font-medium flex items-center">
+                        {p.imagen && (
+                          <img src={p.imagen} alt={p.nombre} className="w-8 h-8 rounded shrink-0 mr-3 object-cover" />
+                        )}
+                        <span className="text-textLight">{p.nombre}</span>
                     </td>
                     <td className="px-4 py-4 text-textMuted font-mono text-xs">{p.sku}</td>
                     <td className="px-4 py-4">{p.categoria?.nombre || '-'}</td>
@@ -519,6 +639,13 @@ const Products = () => {
                     </td>
                     <td className="px-4 py-4 text-right">{formatCurrency(p.precioCompra)}</td>
                     <td className="px-4 py-4 text-right">{formatCurrency(p.precioVenta)}</td>
+                    <td className="px-4 py-4 text-right">
+                      {p.precioKilo != null && p.precioKilo > 0 ? (
+                        <span className="text-xs font-bold text-primary">{formatCurrency(p.precioKilo)}/kg</span>
+                      ) : (
+                        <span className="text-xs text-textMuted">No especifica</span>
+                      )}
+                    </td>
                     <td className="px-4 py-4 text-right">
                        <span className={`text-xs ml-2 ${calculateMargin(p.precioCompra, p.precioVenta) > 30 ? 'text-emerald-400' : 'text-amber-400'}`}>
                           {calculateMargin(p.precioCompra, p.precioVenta)}%
@@ -558,10 +685,11 @@ const Products = () => {
                     <input required name="nombre" value={formData.nombre} onChange={handleInputChange} type="text" className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
                  </div>
                  
-                 <div>
-                    <label className="block text-sm font-medium text-textMuted mb-2">SKU / Código</label>
-                    <input required name="sku" value={formData.sku} onChange={handleInputChange} type="text" className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
-                 </div>
+<div>
+                     <label className="block text-sm font-medium text-textMuted mb-2">SKU / Código</label>
+                     <input name="sku" value={formData.sku} onChange={handleInputChange} type="text" placeholder="Auto si vacío" className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
+                     <p className="text-[10px] text-textMuted mt-1">Si lo dejás vacío, se genera automáticamente</p>
+                  </div>
 
                  <div>
                     <label className="block text-sm font-medium text-textMuted mb-2">Categoría</label>
@@ -638,13 +766,49 @@ const Products = () => {
                     <input required min="0" name="stock" value={formData.stock} onChange={handleInputChange} type="number" className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
                   </div>
 
-                 <div>
+                  <div>
                     <label className="block text-sm font-medium text-textMuted mb-2">Stock Mínimo</label>
                     <input required min="0" name="stockMinimo" value={formData.stockMinimo} onChange={handleInputChange} type="number" className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
-                 </div>
+                  </div>
 
-                 {/* Espacio reservado para centrar */}
-               </form>
+                  <div className="md:col-span-2 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-textMuted">Descripción del producto</label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateDescription}
+                        disabled={loadingDesc || !formData.nombre.trim()}
+                        className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-gradient-to-r from-primary to-primaryDark hover:from-orange-400 hover:to-primaryDark disabled:opacity-40 text-white transition-all"
+                      >
+                        {loadingDesc ? <Loader size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                        {loadingDesc ? 'Generando...' : 'Generar con IA'}
+                      </button>
+                    </div>
+                    <textarea
+                      name="descripcion"
+                      value={formData.descripcion}
+                      onChange={handleInputChange}
+                      rows={3}
+                      placeholder="Descripción del producto (se genera con IA o se carga manualmente)..."
+                      className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none resize-none text-sm"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-textMuted mb-2">Notas para IA (opcional)</label>
+                    <input
+                      name="notasIA"
+                      value={formData.notasIA}
+                      onChange={handleInputChange}
+                      type="text"
+                      placeholder="Ej: marca Royal Canin, raza golden, para cachorros..."
+                      className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none text-sm"
+                    />
+                    <p className="text-[10px] text-textMuted mt-1">Aclaraciones que la IA tendrá en cuenta al generar la descripción</p>
+                  </div>
+
+                  {/* Espacio reservado para centrar */}
+                </form>
             </div>
 
             <div className="p-6 border-t border-stone-800 flex justify-end gap-3 rounded-b-2xl shrink-0">
@@ -691,6 +855,125 @@ const Products = () => {
                   <button type="button" onClick={() => setIsStockModalOpen(false)} className="flex-1 py-3 rounded-lg border border-stone-700 text-textLight hover:bg-stone-800 transition-colors">Cancelar</button>
                   <button type="submit" className="flex-1 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold transition-colors shadow-lg shadow-emerald-500/20">Confirmar</button>
                </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Crear Combo Manual */}
+      {isComboModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface w-full max-w-3xl rounded-2xl border border-stone-700 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-stone-800">
+              <h3 className="text-xl font-bold text-textLight">Crear Combo Manual</h3>
+              <button onClick={() => setIsComboModalOpen(false)} className="text-textMuted hover:text-textLight"><X size={24} /></button>
+            </div>
+            
+            <form onSubmit={handleComboSubmit} className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-textMuted mb-2">Nombre del Combo</label>
+                  <input required name="nombre" value={comboForm.nombre} onChange={e => setComboForm({...comboForm, nombre: e.target.value})} type="text" placeholder="Ej: Combo Perro Activo" className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-textMuted mb-2">SKU</label>
+                  <input name="sku" value={comboForm.sku} onChange={e => setComboForm({...comboForm, sku: e.target.value})} type="text" placeholder="Auto si vacío" className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-textMuted mb-2">Categoría</label>
+                  <select name="categoria" value={comboForm.categoria} onChange={e => setComboForm({...comboForm, categoria: e.target.value})} className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none">
+                    <option value="">Auto (categoría del primer item)</option>
+                    {categories.map(c => <option key={c._id} value={c._id}>{c.nombre}</option>)}
+                  </select>
+                  <p className="text-[10px] text-textMuted mt-1">Si vacío, usa la categoría del primer producto agregado</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-textMuted mb-2">Descuento (%)</label>
+                  <input type="number" min="0" max="50" step="1" name="descuentoPorcentaje" value={comboForm.descuentoPorcentaje} onChange={e => setComboForm({...comboForm, descuentoPorcentaje: parseInt(e.target.value) || 0})} className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-textMuted mb-2">Descripción</label>
+                <textarea name="descripcion" value={comboForm.descripcion} onChange={e => setComboForm({...comboForm, descripcion: e.target.value})} rows={2} className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none" />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-textMuted">Productos del Combo (mín. 2)</label>
+                  <span className="text-xs text-textMuted">{comboForm.items.length} items</span>
+                </div>
+                <div className="mb-3">
+                  <input 
+                    type="text" 
+                    placeholder="Buscar producto por nombre o SKU..." 
+                    value={comboSearch}
+                    onChange={e => setComboSearch(e.target.value)}
+                    className="w-full bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-2 border border-stone-800 rounded-lg p-3 bg-background">
+                  {filteredComboProducts.length === 0 ? (
+                    <p className="text-textMuted text-sm text-center py-4">Sin coincidencias</p>
+                  ) : (
+                    filteredComboProducts.map(p => {
+                      const inCombo = comboForm.items.some(i => i.productoId === p._id);
+                      return (
+                        <div key={p._id} className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${inCombo ? 'bg-purple-500/10 border-purple-500/30' : 'bg-stone-800/30 border-stone-700 hover:border-stone-600'}`}>
+                          {p.imagen && <img src={p.imagen} alt={p.nombre} className="w-10 h-10 rounded object-cover" />}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-textLight truncate">{p.nombre}</p>
+                            <p className="text-xs text-textMuted">{p.categoria?.nombre} · Stock: {p.stock} {p.unidadMedida}</p>
+                          </div>
+                          <span className="text-xs text-emerald-400 font-bold">{formatCurrency(p.precioVenta)}</span>
+                          {inCombo ? (
+                            <button type="button" onClick={() => removeComboItem(comboForm.items.findIndex(i => i.productoId === p._id))} className="text-red-400 hover:text-red-300" title="Quitar"><Trash size={16} /></button>
+                          ) : (
+                            <button type="button" onClick={() => addComboItem(p)} className="text-primary hover:text-primary/80 font-bold px-3 py-1 rounded bg-primary/10" title="Agregar">+</button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {comboForm.items.length > 0 && (() => {
+      const precioLista = comboForm.items.reduce((s, i) => s + (products.find(p => p._id === i.productoId)?.precioVenta || 0) * i.cantidad, 0);
+      const costoTotal = comboForm.items.reduce((s, i) => s + (products.find(p => p._id === i.productoId)?.precioCompra || 0) * i.cantidad, 0);
+      const precioConDesc = precioLista * (1 - comboForm.descuentoPorcentaje / 100);
+      const gananciaNeta = precioConDesc - costoTotal;
+      const margenPct = precioConDesc > 0 ? ((gananciaNeta / precioConDesc) * 100).toFixed(1) : 0;
+
+      return (
+        <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 space-y-2">
+          <h4 className="text-textLight font-medium">Resumen del Combo</h4>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="flex justify-between"><span className="text-textMuted">Productos</span><span className="text-textLight font-bold">{comboForm.items.length}</span></div>
+            <div className="flex justify-between"><span className="text-textMuted">Descuento</span><span className="text-pink-400 font-bold">{comboForm.descuentoPorcentaje}%</span></div>
+            <div className="flex justify-between"><span className="text-textMuted">Precio lista</span><span className="text-textLight font-bold">{precioLista.toLocaleString('es-AR', {style:'currency', currency:'ARS'})}</span></div>
+            <div className="flex justify-between"><span className="text-textMuted">Con descuento</span><span className="text-pink-400 font-bold">{precioConDesc.toLocaleString('es-AR', {style:'currency', currency:'ARS'})}</span></div>
+            <div className="flex justify-between"><span className="text-textMuted">Costo total</span><span className="text-textLight font-bold">{costoTotal.toLocaleString('es-AR', {style:'currency', currency:'ARS'})}</span></div>
+            <div className="flex justify-between"><span className="text-textMuted">Ganancia neta</span><span className="text-emerald-400 font-bold">{gananciaNeta.toLocaleString('es-AR', {style:'currency', currency:'ARS'})}</span></div>
+            <div className="flex justify-between"><span className="text-textMuted">Margen %</span><span className="text-emerald-400 font-bold">{margenPct}%</span></div>
+          </div>
+        </div>
+      );
+    })()}
+
+              <div className="pt-4 flex gap-3 border-t border-stone-800">
+                <button type="button" onClick={() => setIsComboModalOpen(false)} className="flex-1 py-3 rounded-lg border border-stone-700 text-textLight hover:bg-stone-800 transition-colors">Cancelar</button>
+                <button type="submit" disabled={comboLoading || comboForm.items.length < 2} className="flex-1 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white font-semibold transition-colors shadow-lg shadow-purple-500/20">
+                  {comboLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2 inline-block"></div>
+                      Creando...
+                    </>
+                  ) : (
+                    'Crear Combo'
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>

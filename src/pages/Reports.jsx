@@ -1,21 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/axios';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Filter, DollarSign, TrendingUp, Receipt, Percent, Download } from 'lucide-react';
+import { Filter, DollarSign, TrendingUp, Receipt, Percent, Download, BarChart3 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
 const Reports = () => {
+  const [activeView, setActiveView] = useState('reports');
   const [period, setPeriod] = useState('daily');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [data, setData] = useState(null);
   const [topProducts, setTopProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [cashFlowMonth, setCashFlowMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [cashFlow, setCashFlow] = useState(null);
+  const [loadingCashFlow, setLoadingCashFlow] = useState(false);
+
   useEffect(() => {
-    fetchReport();
-  }, [period, date]);
+    if (activeView === 'reports') fetchReport();
+  }, [period, date, activeView]);
+
+  useEffect(() => {
+    if (activeView === 'cashflow') fetchCashFlow();
+  }, [cashFlowMonth, activeView]);
 
   const fetchReport = async () => {
     setLoading(true);
@@ -34,6 +46,19 @@ const Reports = () => {
       toast.error('Error al generar reportes');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCashFlow = async () => {
+    setLoadingCashFlow(true);
+    try {
+      const [year, month] = cashFlowMonth.split('-');
+      const { data } = await api.get(`/reports/cash-flow?year=${year}&month=${month}`);
+      setCashFlow(data);
+    } catch {
+      toast.error('Error al cargar flujo de caja');
+    } finally {
+      setLoadingCashFlow(false);
     }
   };
 
@@ -71,40 +96,70 @@ const Reports = () => {
           <p className="text-textMuted text-sm mt-1">Análisis de rendimiento y ventas</p>
         </div>
         
-        <div className="bg-surface p-2 rounded-xl border border-stone-800 flex flex-wrap gap-2 items-center">
-            <Filter size={18} className="text-stone-400 mx-2" />
-            <select 
-               value={period} 
-               onChange={(e) => setPeriod(e.target.value)}
-               className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
-            >
-               <option value="daily">Diario</option>
-               <option value="weekly">Semanal</option>
-               <option value="monthly">Mensual</option>
-               <option value="annual">Anual</option>
-            </select>
-            {(period === 'daily' || period === 'weekly') && (
-               <input 
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
-               />
-            )}
-            <button 
-               onClick={exportToCSV}
-               disabled={loading || !data}
-               className="bg-primary hover:bg-primaryDark text-white px-3 py-2 rounded-lg transition-colors flex items-center ml-2 shadow-lg disabled:opacity-50"
-               title="Exportar a CSV"
-            >
-               <Download size={18} />
-            </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveView('reports')}
+            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors ${activeView === 'reports' ? 'bg-primary text-white' : 'bg-surface border border-stone-700 text-textMuted hover:text-textLight'}`}
+          >
+            <Filter size={16} /> Reportes
+          </button>
+          <button
+            onClick={() => setActiveView('cashflow')}
+            className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors ${activeView === 'cashflow' ? 'bg-primary text-white' : 'bg-surface border border-stone-700 text-textMuted hover:text-textLight'}`}
+          >
+            <BarChart3 size={16} /> Flujo de Caja
+          </button>
         </div>
+        
+        {activeView === 'reports' && (
+          <div className="bg-surface p-2 rounded-xl border border-stone-800 flex flex-wrap gap-2 items-center">
+              <Filter size={18} className="text-stone-400 mx-2" />
+              <select 
+                 value={period} 
+                 onChange={(e) => setPeriod(e.target.value)}
+                 className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
+              >
+                 <option value="daily">Diario</option>
+                 <option value="weekly">Semanal</option>
+                 <option value="monthly">Mensual</option>
+                 <option value="annual">Anual</option>
+              </select>
+              {(period === 'daily' || period === 'weekly') && (
+                 <input 
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
+                 />
+              )}
+              <button 
+                 onClick={exportToCSV}
+                 disabled={loading || !data}
+                 className="bg-primary hover:bg-primaryDark text-white px-3 py-2 rounded-lg transition-colors flex items-center ml-2 shadow-lg disabled:opacity-50"
+                 title="Exportar a CSV"
+              >
+                 <Download size={18} />
+              </button>
+          </div>
+        )}
+
+        {activeView === 'cashflow' && (
+          <div className="bg-surface p-2 rounded-xl border border-stone-800 flex gap-2 items-center">
+            <span className="text-textMuted text-sm ml-2">Mes:</span>
+            <input
+              type="month"
+              value={cashFlowMonth}
+              onChange={(e) => setCashFlowMonth(e.target.value)}
+              className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
+            />
+          </div>
+        )}
       </div>
 
-      {loading || !data ? (
-         <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>
-      ) : (
+      {activeView === 'reports' ? (
+        loading || !data ? (
+          <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+        ) : (
         <>
           {/* Tarjetas de Metricas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -240,6 +295,110 @@ const Reports = () => {
             </div>
           </div>
         </>
+        )
+      ) : (
+        /* Flujo de Caja Mensual */
+        loadingCashFlow ? (
+          <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+        ) : cashFlow ? (
+          <>
+            {/* Totales */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-surface p-6 rounded-xl border border-stone-800">
+                <p className="text-textMuted text-sm mb-1">Ingresos Totales</p>
+                <p className="text-2xl font-bold text-emerald-400 flex items-center">
+                  <DollarSign size={20} className="mr-1" />
+                  {formatCurrency(cashFlow.totales.ingresos)}
+                </p>
+              </div>
+              <div className="bg-surface p-6 rounded-xl border border-stone-800">
+                <p className="text-textMuted text-sm mb-1">Gastos Totales</p>
+                <p className="text-2xl font-bold text-danger flex items-center">
+                  {formatCurrency(cashFlow.totales.gastos)}
+                </p>
+              </div>
+              <div className="bg-surface p-6 rounded-xl border border-stone-800">
+                <p className="text-textMuted text-sm mb-1">Ganancia Neta</p>
+                <p className={`text-2xl font-bold ${cashFlow.totales.ganancia >= 0 ? 'text-emerald-400' : 'text-danger'}`}>
+                  {formatCurrency(cashFlow.totales.ganancia)}
+                </p>
+              </div>
+              <div className="bg-surface p-6 rounded-xl border border-stone-800">
+                <p className="text-textMuted text-sm mb-1">Total Tickets</p>
+                <p className="text-2xl font-bold text-textLight">{cashFlow.totales.ventas}</p>
+              </div>
+            </div>
+
+            {/* Gráfico */}
+            <div className="bg-surface p-6 rounded-xl border border-stone-800 shadow-sm">
+              <h3 className="text-lg font-semibold text-textLight mb-6">Flujo de Caja Diario — {cashFlow.periodo.month}/{cashFlow.periodo.year}</h3>
+              <div className="h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={cashFlow.dias}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                    <XAxis dataKey="fecha" stroke="#94a3b8" fontSize={11} tickFormatter={(v) => v.split('-')[2]} />
+                    <YAxis stroke="#94a3b8" fontSize={12} tickFormatter={(val) => `$${val / 1000}k`} />
+                    <RechartsTooltip
+                      contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: '0.5rem', color: '#f8fafc' }}
+                      formatter={(value, name) => [formatCurrency(name === 'ventas' ? 0 : value), name]}
+                      labelFormatter={(label) => {
+                        const d = cashFlow.dias.find(x => x.fecha === label);
+                        return d ? `${label} (${d.ventas} ventas)` : label;
+                      }}
+                    />
+                    <Legend />
+                    <Line type="monotone" name="Ingresos" dataKey="ingresos" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" name="Gastos" dataKey="gastos" stroke="#ef4444" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" name="Balance" dataKey="balance" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="5 5" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Tabla detallada */}
+            <div className="bg-surface rounded-xl border border-stone-800 shadow-sm overflow-hidden">
+              <h3 className="text-lg font-semibold text-textLight p-6 border-b border-stone-800">Detalle por Día</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-textLight">
+                  <thead className="bg-stone-900 text-xs text-textMuted uppercase border-b border-stone-800">
+                    <tr>
+                      <th className="px-4 py-3">Fecha</th>
+                      <th className="px-4 py-3 text-center">Ventas</th>
+                      <th className="px-4 py-3 text-right">Ingresos</th>
+                      <th className="px-4 py-3 text-right">Gastos</th>
+                      <th className="px-4 py-3 text-right">Ganancia</th>
+                      <th className="px-4 py-3 text-right">Balance</th>
+                      <th className="px-4 py-3 text-right">Efectivo</th>
+                      <th className="px-4 py-3 text-right">Tarjeta</th>
+                      <th className="px-4 py-3 text-right">Transf.</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-800">
+                    {cashFlow.dias.filter(d => d.ventas > 0 || d.gastos > 0).map((d) => (
+                      <tr key={d.fecha} className="hover:bg-stone-800/50">
+                        <td className="px-4 py-3 font-mono text-xs">{d.fecha}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-xs font-bold">{d.ventas}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-emerald-400 font-bold">{formatCurrency(d.ingresos)}</td>
+                        <td className="px-4 py-3 text-right text-danger font-bold">{formatCurrency(d.gastos)}</td>
+                        <td className="px-4 py-3 text-right font-bold">{formatCurrency(d.ganancia)}</td>
+                        <td className={`px-4 py-3 text-right font-extrabold ${d.balance >= 0 ? 'text-emerald-400' : 'text-danger'}`}>
+                          {formatCurrency(d.balance)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-textMuted text-xs">{formatCurrency(d.efectivo)}</td>
+                        <td className="px-4 py-3 text-right text-textMuted text-xs">{formatCurrency(d.tarjeta)}</td>
+                        <td className="px-4 py-3 text-right text-textMuted text-xs">{formatCurrency(d.transferencia)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="text-center py-20 text-textMuted">No hay datos para este mes</div>
+        )
       )}
     </div>
   );

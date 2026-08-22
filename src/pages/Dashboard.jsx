@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import {
   TrendingUp, ShoppingCart, DollarSign, Receipt, AlertTriangle, Package,
   PackageX, ShoppingBag, Clock, ArrowRight, Sparkles, ChevronRight,
-  Store, AlertCircle, Globe, Share2, BarChart3
+  Store, AlertCircle, Globe, Share2, BarChart3, Lock, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -52,6 +52,9 @@ const Dashboard = () => {
   const [recentSales, setRecentSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('top');
+  const [showCashClose, setShowCashClose] = useState(false);
+  const [cashClose, setCashClose] = useState(null);
+  const [loadingCashClose, setLoadingCashClose] = useState(false);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -87,6 +90,19 @@ const Dashboard = () => {
     const url = window.location.origin + '/catalogo';
     navigator.clipboard.writeText(url);
     toast.success('Link del cat\u00e1logo copiado');
+  };
+
+  const handleCashClose = async () => {
+    setLoadingCashClose(true);
+    try {
+      const { data } = await api.get('/reports/cash-close');
+      setCashClose(data);
+      setShowCashClose(true);
+    } catch {
+      toast.error('Error al cargar cierre de caja');
+    } finally {
+      setLoadingCashClose(false);
+    }
   };
 
   if (loading) {
@@ -129,13 +145,25 @@ const Dashboard = () => {
           <button onClick={handleShareCatalog} className="bg-white/5 hover:bg-white/10 border border-stone-700/50 text-textLight px-4 py-2 rounded-xl transition-all flex items-center text-sm font-medium" title="Compartir cat\u00e1logo">
             <Share2 size={16} className="opacity-70" />
           </button>
+          <button
+            onClick={handleCashClose}
+            disabled={loadingCashClose}
+            className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-4 py-2 rounded-xl transition-all flex items-center text-sm font-medium shadow-lg shadow-emerald-500/20"
+          >
+            {loadingCashClose ? (
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+            ) : (
+              <Lock size={16} className="mr-2" />
+            )}
+            Cierre de Caja
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card
           icon={DollarSign}
-          label="Facturaci\u00f3n Hoy"
+          label="Facturacion Hoy"
           value={formatCurrency(summary ? summary.facturacionHoy : 0)}
           gradient="bg-gradient-to-br from-primary to-primaryDark"
         />
@@ -166,7 +194,7 @@ const Dashboard = () => {
             <div className="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center">
               <Store size={16} className="text-primary" />
             </div>
-            <p className="text-textMuted text-xs font-medium uppercase tracking-wider">Facturaci\u00f3n del Mes</p>
+            <p className="text-textMuted text-xs font-medium uppercase tracking-wider">Facturacion del Mes</p>
           </div>
           <p className="text-xl font-bold text-textLight">{formatCurrency(summary && summary.mes ? summary.mes.facturacion : 0)}</p>
         </div>
@@ -291,7 +319,7 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-bold text-textLight flex items-center gap-2">
               <Clock size={16} className="text-stone-400" />
-              \u00daltimas Ventas
+              Ultimas Ventas
             </h3>
             <Link to="/sales" className="text-xs text-primary hover:text-primary/80 flex items-center gap-1">
               Ver todas <ArrowRight size={12} />
@@ -322,6 +350,115 @@ const Dashboard = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Cierre de Caja */}
+      {showCashClose && cashClose && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface w-full max-w-lg rounded-2xl border border-stone-700 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-6 border-b border-stone-800">
+              <div>
+                <h3 className="text-xl font-bold text-textLight flex items-center gap-2">
+                  <Lock size={20} className="text-emerald-400" />
+                  Cierre de Caja
+                </h3>
+                <p className="text-xs text-textMuted mt-1">
+                  {new Date(cashClose.fecha).toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+              <button onClick={() => setShowCashClose(false)} className="text-textMuted hover:text-textLight">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-5">
+              {/* Resumen General */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-background rounded-xl p-4 border border-stone-700">
+                  <p className="text-[10px] uppercase font-bold text-textMuted mb-1">Total Ventas</p>
+                  <p className="text-lg font-extrabold text-textLight">{cashClose.ventas.total}</p>
+                </div>
+                <div className="bg-background rounded-xl p-4 border border-stone-700">
+                  <p className="text-[10px] uppercase font-bold text-textMuted mb-1">Facturación</p>
+                  <p className="text-lg font-extrabold text-primary">{formatCurrency(cashClose.ventas.montoTotal)}</p>
+                </div>
+              </div>
+
+              {/* Métodos de Pago */}
+              <div className="bg-background rounded-xl p-4 border border-stone-700 space-y-3">
+                <p className="text-xs font-bold text-textLight uppercase tracking-wider">Métodos de Pago</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-textMuted">💵 Efectivo</span>
+                    <span className="text-sm font-bold text-textLight">{formatCurrency(cashClose.ventas.efectivo)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-textMuted">💳 Tarjeta</span>
+                    <span className="text-sm font-bold text-textLight">{formatCurrency(cashClose.ventas.tarjeta)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-textMuted">🏦 Transferencia</span>
+                    <span className="text-sm font-bold text-textLight">{formatCurrency(cashClose.ventas.transferencia)}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-stone-700 pt-2">
+                    <span className="text-sm text-emerald-400 font-bold">Efectivo en Caja</span>
+                    <span className="text-sm font-extrabold text-emerald-400">{formatCurrency(cashClose.ventas.efectivoEnCaja)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Gastos */}
+              <div className="bg-background rounded-xl p-4 border border-stone-700 space-y-3">
+                <p className="text-xs font-bold text-textLight uppercase tracking-wider">Gastos del Día</p>
+                {cashClose.gastos.porCategoria.length > 0 ? (
+                  <div className="space-y-2">
+                    {cashClose.gastos.porCategoria.map((g) => (
+                      <div key={g._id} className="flex items-center justify-between">
+                        <span className="text-sm text-textMuted capitalize">{g._id} ({g.cantidad})</span>
+                        <span className="text-sm font-bold text-danger">{formatCurrency(g.total)}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between border-t border-stone-700 pt-2">
+                      <span className="text-sm text-danger font-bold">Total Gastos</span>
+                      <span className="text-sm font-extrabold text-danger">{formatCurrency(cashClose.gastos.total)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-textMuted">Sin gastos registrados</p>
+                )}
+              </div>
+
+              {/* Balance Final */}
+              <div className={`rounded-xl p-5 border-2 ${cashClose.balanceNeto >= 0 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-danger/10 border-danger/30'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold uppercase text-textMuted">Ganancia Bruta</span>
+                  <span className={`text-sm font-bold ${cashClose.gananciaBruta >= 0 ? 'text-emerald-400' : 'text-danger'}`}>
+                    {formatCurrency(cashClose.gananciaBruta)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-textMuted">- Gastos</span>
+                  <span className="text-sm font-bold text-danger">{formatCurrency(cashClose.gastos.total)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-stone-700 mt-3 pt-3">
+                  <span className="text-base font-bold text-textLight">Balance Neto del Día</span>
+                  <span className={`text-xl font-extrabold ${cashClose.balanceNeto >= 0 ? 'text-emerald-400' : 'text-danger'}`}>
+                    {formatCurrency(cashClose.balanceNeto)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-stone-800 rounded-b-2xl">
+              <button
+                onClick={() => setShowCashClose(false)}
+                className="w-full py-3 rounded-xl bg-stone-800 hover:bg-stone-700 text-textLight font-bold transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

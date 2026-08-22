@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import api from '../api/axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CartContext } from '../context/CartContext';
 import toast from 'react-hot-toast';
 import {
@@ -117,18 +117,19 @@ const ProductPicker = ({ label, value, onChange, products, disabled, placeholder
 
 const Asistente = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { cartItems, addToCart } = useContext(CartContext);
 
-  const [modo, setModo] = useState('catalogo');
+  const [modo, setModo] = useState(() => searchParams.get('mode') || 'catalogo');
 
   // Modo catálogo
-  const [consulta, setConsulta] = useState('');
+  const [consulta, setConsulta] = useState(() => searchParams.get('q') || '');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
 
   // Modo web
-  const [webProducto, setWebProducto] = useState('');
-  const [webReferencia, setWebReferencia] = useState('');
+  const [webProducto, setWebProducto] = useState(() => searchParams.get('q') || '');
+  const [webReferencia, setWebReferencia] = useState(() => searchParams.get('r') || '');
   const [webLoading, setWebLoading] = useState(false);
   const [webResult, setWebResult] = useState(null);
 
@@ -142,9 +143,32 @@ const Asistente = () => {
   useEffect(() => {
     api
       .get('/products')
-      .then(({ data }) => setCatalogo(Array.isArray(data) ? data : []))
+      .then(({ data }) => {
+        const products = Array.isArray(data) ? data : [];
+        setCatalogo(products);
+
+        const mode = searchParams.get('mode');
+        const idsParam = searchParams.get('ids');
+        if (mode === 'comparar' && idsParam) {
+          const ids = idsParam.split(',').filter(Boolean);
+          const matched = products.filter((p) => ids.includes(p._id));
+          if (matched.length >= 2) {
+            setSelected(matched);
+            setModo('comparar');
+          }
+        }
+      })
       .catch(() => setCatalogo([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const saveHistory = async (tipo, titulo, consulta, referencia, fuente, resultado) => {
+    try {
+      await api.post('/ai-history', { tipo, titulo, consulta, referencia, fuente, resultado });
+    } catch {
+      // silenciar errores de historial
+    }
+  };
 
   const handleRecommend = async (query) => {
     const q = (query ?? consulta).trim();
@@ -154,6 +178,7 @@ const Asistente = () => {
     try {
       const { data } = await api.post('/recommendations', { consulta: q });
       setResult(data);
+      saveHistory('catalogo', q.slice(0, 80), q, null, data.fuente, data);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error al buscar recomendaciones');
     } finally {
@@ -172,12 +197,30 @@ const Asistente = () => {
         referencia: webReferencia,
       });
       setWebResult(data);
+      saveHistory('internet', `${producto}${webReferencia ? ` (${webReferencia})` : ''}`.slice(0, 80), producto, webReferencia, null, data);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error al buscar en internet');
     } finally {
       setWebLoading(false);
     }
   };
+
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    const q = searchParams.get('q');
+    if (mode && q) {
+      setModo(mode);
+      if (mode === 'catalogo') {
+        setConsulta(q);
+        handleRecommend(q);
+      } else if (mode === 'internet') {
+        setWebProducto(q);
+        setWebReferencia(searchParams.get('r') || '');
+        handleWebSearch();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const addProduct = (p) => {
     setCompResult(null);
@@ -200,6 +243,8 @@ const Asistente = () => {
         productoIds: selected.map((p) => p._id),
       });
       setCompResult(data);
+      const nombres = selected.map((p) => p.nombre).join(' vs ');
+      saveHistory('comparar', nombres.slice(0, 80), nombres, null, data.fuente, data);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error al comparar productos');
     } finally {
@@ -211,6 +256,14 @@ const Asistente = () => {
     const added = addToCart(product);
     if (added) {
       toast.success(`${product.nombre} agregado al carrito`);
+    }
+  };
+
+  const handleAddAndGoToPOS = (product) => {
+    const added = addToCart(product);
+    if (added) {
+      toast.success(`${product.nombre} agregado al carrito`);
+      navigate('/pos');
     }
   };
 
@@ -745,17 +798,51 @@ const Asistente = () => {
                           <th className="px-4 py-3">Características</th>
                           <th className="px-4 py-3">Pros</th>
                           <th className="px-4 py-3">Contras</th>
+                          <th className="px-4 py-3"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-800">
                         {webResult.comparaciones.map((c, i) => (
                           <tr key={i} className="hover:bg-stone-800/40">
-                            <td className="px-4 py-3 font-semibold text-textLight">{c.producto}</td>
+                            <td className="px-4 py-3 font-semibold text-textLight">
+                              <div>{c.producto}</div>
+                              {c.enStock && c.productoLocal && (
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 flex items-center gap-1">
+                                    <CheckCircle2 size={10} /> En tu stock
+                                  </span>
+                                  <span className="text-[10px] text-textMuted font-mono">
+                                    ${c.productoLocal.precioVenta?.toLocaleString('es-AR')} · {c.productoLocal.stock} u.
+                                  </span>
+                                </div>
+                              )}
+                              {!c.enStock && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-stone-700 text-textMuted mt-1 inline-block">
+                                  No está en tu catálogo
+                                </span>
+                              )}
+                            </td>
                             <td className="px-4 py-3 text-textMuted">{c.marca || '—'}</td>
                             <td className="px-4 py-3 font-bold text-primary whitespace-nowrap">{c.precio_aprox || '—'}</td>
                             <td className="px-4 py-3 text-textMuted">{c.caracteristicas || '—'}</td>
                             <td className="px-4 py-3 text-emerald-400">{c.pros || '—'}</td>
                             <td className="px-4 py-3 text-red-400">{c.contras || '—'}</td>
+                            <td className="px-4 py-3">
+                              {c.enStock && c.productoLocal && (
+                                <button
+                                  onClick={() => handleAddAndGoToPOS(c.productoLocal)}
+                                  disabled={inCart(c.productoLocal._id) || c.productoLocal.stock <= 0}
+                                  className={`text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors ${
+                                    inCart(c.productoLocal._id)
+                                      ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
+                                      : 'bg-primary hover:bg-primaryDark text-white'
+                                  }`}
+                                >
+                                  {inCart(c.productoLocal._id) ? <CheckCircle2 size={12} /> : <ShoppingCart size={12} />}
+                                  {inCart(c.productoLocal._id) ? 'En carrito' : 'Vender'}
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -771,11 +858,42 @@ const Asistente = () => {
                   </p>
                   <div className="space-y-2">
                     {webResult.recomendaciones.map((r, i) => (
-                      <div key={i} className="flex items-start gap-2 text-sm">
-                        <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
-                        <p className="text-textLight"><span className="font-bold">{r.producto}</span>
-                          {r.motivo && <span className="text-textMuted"> — {r.motivo}</span>}
-                        </p>
+                      <div key={i} className={`flex items-start gap-2 text-sm p-2 rounded-lg ${r.enStock ? 'bg-emerald-500/5 border border-emerald-500/20' : ''}`}>
+                        {r.enStock ? (
+                          <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                        ) : (
+                          <Globe size={16} className="text-primary mt-0.5 shrink-0" />
+                        )}
+                        <div className="flex-1">
+                          <p className="text-textLight"><span className="font-bold">{r.producto}</span>
+                            {r.motivo && <span className="text-textMuted"> — {r.motivo}</span>}
+                          </p>
+                          {r.enStock && r.productoLocal && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                                En tu stock: {r.productoLocal.stock} u. a ${r.productoLocal.precioVenta?.toLocaleString('es-AR')}
+                              </span>
+                              <span className="text-[10px] text-textMuted font-mono">{r.productoLocal.sku}</span>
+                            </div>
+                          )}
+                          {!r.enStock && (
+                            <span className="text-[10px] text-textMuted mt-1 inline-block">No lo tenés en catálogo</span>
+                          )}
+                        </div>
+                        {r.enStock && r.productoLocal && (
+                          <button
+                            onClick={() => handleAddAndGoToPOS(r.productoLocal)}
+                            disabled={inCart(r.productoLocal._id) || r.productoLocal.stock <= 0}
+                            className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors ${
+                              inCart(r.productoLocal._id)
+                                ? 'bg-emerald-500/20 text-emerald-400 cursor-default'
+                                : 'bg-primary hover:bg-primaryDark text-white'
+                            }`}
+                          >
+                            {inCart(r.productoLocal._id) ? <CheckCircle2 size={12} /> : <ShoppingCart size={12} />}
+                            {inCart(r.productoLocal._id) ? 'En carrito' : 'Vender'}
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

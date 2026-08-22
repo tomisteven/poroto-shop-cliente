@@ -19,12 +19,19 @@ import Statistics from './pages/Statistics';
 import DailySales from './pages/DailySales';
 import RVentas from './pages/RVentas';
 import Gestion from './pages/Gestion';
+import Clientes from './pages/Clientes';
+import Proveedores from './pages/Proveedores';
+import OrdenesCompra from './pages/OrdenesCompra';
+import Gastos from './pages/Gastos';
 import Budgets from './pages/Budgets';
 import Catalogo from './pages/Catalogo';
 import Promociones from './pages/Promociones';
 import Asistente from './pages/Asistente';
+import AIHistory from './pages/AIHistory';
+import Orders from './pages/Orders';
 import Calendario from './pages/Calendario';
 import Afiliados from './pages/Afiliados';
+import AIHub from './pages/AIHub';
 
 function App() {
   return (
@@ -58,11 +65,18 @@ function App() {
               <Route path="statistics/day/:date" element={<DailySales />} />
               <Route path="rventas" element={<RVentas />} />
               <Route path="gestion" element={<Gestion />} />
+              <Route path="clientes" element={<Clientes />} />
+              <Route path="proveedores" element={<Proveedores />} />
+              <Route path="ordenes-compra" element={<OrdenesCompra />} />
+              <Route path="gastos" element={<Gastos />} />
               <Route path="presupuestos" element={<Budgets />} />
               <Route path="promociones" element={<Promociones />} />
               <Route path="asistente" element={<Asistente />} />
+              <Route path="ai-history" element={<AIHistory />} />
+              <Route path="orders" element={<Orders />} />
               <Route path="calendario" element={<Calendario />} />
               <Route path="afiliados" element={<Afiliados />} />
+              <Route path="ai-hub" element={<AIHub />} />
               
               <Route path="users" element={
                 <ProtectedRoute requireAdmin={true}>

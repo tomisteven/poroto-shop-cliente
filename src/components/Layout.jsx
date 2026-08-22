@@ -30,7 +30,9 @@ import {
   Calendar,
   Award,
   Search,
-  PawPrint
+  PawPrint,
+  Clock,
+  Bot
 } from 'lucide-react';
 
 const UPDATES = [
@@ -170,8 +172,10 @@ const buildMenuGroups = (isAdmin) => {
       items: [
         { name: 'Ventas', path: '/sales', icon: History },
         { name: 'R - Ventas', path: '/rventas', icon: TrendingUp },
+        { name: 'Pedidos', path: '/orders', icon: ShoppingBag },
         { name: 'Presupuestos', path: '/presupuestos', icon: FileText },
         { name: 'Ayuda Vendedor', path: '/asistente', icon: Wand2 },
+        { name: 'Historial IA', path: '/ai-history', icon: Clock },
       ],
     },
     {
@@ -186,7 +190,10 @@ const buildMenuGroups = (isAdmin) => {
     {
       title: 'Gestión',
       items: [
-        { name: 'Gestión', path: '/gestion', icon: FolderKanban },
+        { name: 'Clientes', path: '/clientes', icon: Users },
+        { name: 'Proveedores', path: '/proveedores', icon: Building2 },
+        { name: 'Órdenes de Compra', path: '/ordenes-compra', icon: ShoppingCart },
+        { name: 'Gastos', path: '/gastos', icon: Receipt },
         { name: 'Calendario', path: '/calendario', icon: Calendar },
         { name: 'Afiliados', path: '/afiliados', icon: Award },
       ],
@@ -196,6 +203,12 @@ const buildMenuGroups = (isAdmin) => {
       items: [
         { name: 'Reportes', path: '/reports', icon: BarChart3 },
         { name: 'Estadísticas', path: '/statistics', icon: PieChart },
+      ],
+    },
+    {
+      title: 'IA',
+      items: [
+        { name: 'Centro de IA', path: '/ai-hub', icon: Bot },
       ],
     },
   ];
