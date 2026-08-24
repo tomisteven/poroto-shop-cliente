@@ -187,17 +187,18 @@ const buildMenuGroups = (isAdmin) => {
         { name: 'Promociones', path: '/promociones', icon: Sparkles },
       ],
     },
-    {
-      title: 'Gestión',
-      items: [
-        { name: 'Clientes', path: '/clientes', icon: Users },
-        { name: 'Proveedores', path: '/proveedores', icon: Building2 },
-        { name: 'Órdenes de Compra', path: '/ordenes-compra', icon: ShoppingCart },
-        { name: 'Gastos', path: '/gastos', icon: Receipt },
-        { name: 'Calendario', path: '/calendario', icon: Calendar },
-        { name: 'Afiliados', path: '/afiliados', icon: Award },
-      ],
-    },
+{
+        title: 'Gestión',
+        items: [
+          { name: 'Gestión', path: '/gestion', icon: FolderKanban },
+          { name: 'Clientes', path: '/clientes', icon: Users },
+          { name: 'Proveedores', path: '/proveedores', icon: Building2 },
+          { name: 'Órdenes de Compra', path: '/ordenes-compra', icon: ShoppingCart },
+          { name: 'Gastos', path: '/gastos', icon: Receipt },
+          { name: 'Calendario', path: '/calendario', icon: Calendar },
+          { name: 'Afiliados', path: '/afiliados', icon: Award },
+        ],
+      },
     {
       title: 'Informes',
       items: [

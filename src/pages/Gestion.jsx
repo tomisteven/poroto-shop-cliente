@@ -3,7 +3,7 @@ import api from '../api/axios';
 import {
   Building2, ShoppingCart, Receipt, Users, Plus, Edit3, Trash2,
   Search, X, Check, Package, DollarSign, Calendar, FileText,
-  Truck, Ban
+  Truck, Ban, Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -45,6 +45,7 @@ const Gestion = () => {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [editing, setEditing] = useState(null);
+  const [orderDetail, setOrderDetail] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -163,6 +164,10 @@ const Gestion = () => {
     } catch (error) {
       toast.error('Error al cancelar');
     }
+  };
+
+  const handleViewOrderDetail = (order) => {
+    setOrderDetail(order);
   };
 
   const getStatusBadge = (estado) => {
@@ -320,6 +325,79 @@ const Gestion = () => {
     );
   };
 
+  const renderOrderDetailModal = () => {
+    if (!orderDetail) return null;
+    return (
+      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setOrderDetail(null)}>
+        <div className="bg-surface rounded-2xl border border-stone-800 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-5 border-b border-stone-800">
+            <h3 className="text-lg font-bold text-textLight">Detalle de Orden: {orderDetail.numero}</h3>
+            <button onClick={() => setOrderDetail(null)} className="text-textMuted hover:text-textLight"><X size={20} /></button>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-textMuted">Proveedor:</span>
+                <p className="font-medium text-textLight">{orderDetail.proveedor?.nombre || '—'}</p>
+              </div>
+              <div>
+                <span className="text-textMuted">Fecha:</span>
+                <p className="font-medium text-textLight">{new Date(orderDetail.fecha).toLocaleDateString('es-AR')}</p>
+              </div>
+              <div>
+                <span className="text-textMuted">Estado:</span>
+                <p className="font-medium">{getStatusBadge(orderDetail.estado)}</p>
+              </div>
+              <div>
+                <span className="text-textMuted">Total:</span>
+                <p className="font-bold text-emerald-400 text-lg">{formatCurrency(orderDetail.total)}</p>
+              </div>
+            </div>
+            {orderDetail.notas && (
+              <div>
+                <span className="text-textMuted text-sm">Notas:</span>
+                <p className="text-textLight mt-1">{orderDetail.notas}</p>
+              </div>
+            )}
+            <div>
+              <h4 className="font-medium text-textLight mb-2">Productos ({orderDetail.items?.length || 0})</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="text-xs text-textMuted uppercase border-b border-stone-800">
+                    <tr>
+                      <th className="px-3 py-2">Producto</th>
+                      <th className="px-3 py-2 text-center">SKU</th>
+                      <th className="px-3 py-2 text-center">Cant.</th>
+                      <th className="px-3 py-2 text-right">Precio Unit.</th>
+                      <th className="px-3 py-2 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-800">
+                    {orderDetail.items?.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-stone-800/40">
+                        <td className="px-3 py-2 font-medium">{item.producto?.nombre || '—'}</td>
+                        <td className="px-3 py-2 text-center text-xs font-mono text-textMuted">{item.producto?.sku || '—'}</td>
+                        <td className="px-3 py-2 text-center">{item.cantidad}</td>
+                        <td className="px-3 py-2 text-right">{formatCurrency(item.precioUnitario)}</td>
+                        <td className="px-3 py-2 text-right font-medium">{formatCurrency(item.cantidad * item.precioUnitario)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-stone-900/40 font-bold border-t border-stone-700">
+                    <tr>
+                      <td colSpan={4} className="px-3 py-2 text-right">Total</td>
+                      <td className="px-3 py-2 text-right text-emerald-400">{formatCurrency(orderDetail.total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return <div className="flex h-full items-center justify-center"><div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
   }
@@ -440,6 +518,8 @@ const Gestion = () => {
                   <td className="px-4 py-3 text-center">{getStatusBadge(o.estado)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1">
+                      <button onClick={() => handleViewOrderDetail(o)} title="Ver detalle"
+                        className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"><Eye size={15} /></button>
                       {o.estado === 'pendiente' && (
                         <>
                           <button onClick={() => handleReceiveOrder(o._id)} title="Recibir"
@@ -552,6 +632,7 @@ const Gestion = () => {
       )}
 
       {renderModal()}
+      {renderOrderDetailModal()}
     </div>
   );
 };
