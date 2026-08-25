@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../api/axios';
 import { ShoppingCart, Plus, Check, Ban, Search, X, Pencil, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -136,6 +136,20 @@ const OrdenesCompra = () => {
       )
     : orders;
 
+  const stats = useMemo(() => {
+    const pendientes = orders.filter(o => o.estado === 'pendiente');
+    const recibidas = orders.filter(o => o.estado === 'recibida');
+    const canceladas = orders.filter(o => o.estado === 'cancelada');
+    return {
+      totalGeneral: orders.reduce((s, o) => s + (o.total || 0), 0),
+      totalPendientes: pendientes.reduce((s, o) => s + (o.total || 0), 0),
+      totalRecibidas: recibidas.reduce((s, o) => s + (o.total || 0), 0),
+      countPendientes: pendientes.length,
+      countRecibidas: recibidas.length,
+      countCanceladas: canceladas.length
+    };
+  }, [orders]);
+
   if (loading) {
     return <div className="flex h-64 items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   }
@@ -159,6 +173,29 @@ const OrdenesCompra = () => {
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
         <input type="text" placeholder="Buscar por número o proveedor..." value={search} onChange={e => setSearch(e.target.value)}
           className="w-full bg-background border border-stone-700 rounded-lg pl-9 pr-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary" />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-surface rounded-xl border border-stone-800 p-4">
+          <p className="text-xs text-textMuted mb-1">Total general</p>
+          <p className="text-lg font-bold text-textLight">{formatCurrency(stats.totalGeneral)}</p>
+          <p className="text-[11px] text-textMuted mt-0.5">{orders.length} órdenes</p>
+        </div>
+        <div className="bg-surface rounded-xl border border-amber-500/30 p-4">
+          <p className="text-xs text-amber-400 mb-1">Pendientes</p>
+          <p className="text-lg font-bold text-amber-400">{formatCurrency(stats.totalPendientes)}</p>
+          <p className="text-[11px] text-textMuted mt-0.5">{stats.countPendientes} órdenes</p>
+        </div>
+        <div className="bg-surface rounded-xl border border-emerald-500/30 p-4">
+          <p className="text-xs text-emerald-400 mb-1">Recibidas</p>
+          <p className="text-lg font-bold text-emerald-400">{formatCurrency(stats.totalRecibidas)}</p>
+          <p className="text-[11px] text-textMuted mt-0.5">{stats.countRecibidas} órdenes</p>
+        </div>
+        <div className="bg-surface rounded-xl border border-red-500/30 p-4">
+          <p className="text-xs text-red-400 mb-1">Canceladas</p>
+          <p className="text-lg font-bold text-red-400">{stats.countCanceladas}</p>
+          <p className="text-[11px] text-textMuted mt-0.5">órdenes</p>
+        </div>
       </div>
 
       <div className="bg-surface rounded-xl border border-stone-800 overflow-hidden">
