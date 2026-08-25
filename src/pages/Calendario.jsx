@@ -3,7 +3,7 @@ import api from '../api/axios';
 import {
   Calendar, CalendarPlus, Pencil, Trash2, Check, CheckCircle2, X,
   ChevronLeft, ChevronRight, Clock, DollarSign, Repeat, AlertTriangle,
-  ListTodo, Info, Link2
+  ListTodo, Info, Link2, Package, Plus, Minus, TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -23,6 +23,16 @@ const TIPOS = {
 };
 
 const FORM_TIPOS = ['tarea', 'recordatorio', 'pago', 'compra', 'servicio', 'nota', 'otro'];
+
+const TABS = [
+  { key: 'calendario', label: 'Calendario', icon: Calendar },
+  { key: 'tarea', label: 'Tareas', icon: ListTodo },
+  { key: 'nota', label: 'Notas', icon: Info },
+  { key: 'pago', label: 'Pagos', icon: DollarSign },
+  { key: 'compra', label: 'Compras', icon: Package },
+  { key: 'servicio', label: 'Servicios', icon: Clock },
+  { key: 'inversiones', label: 'Inversiones', icon: TrendingUp }
+];
 
 const FRECUENCIAS = [
   { value: 'diaria', label: 'Diaria' },
@@ -95,6 +105,12 @@ const Calendario = () => {
   const [dayList, setDayList] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [activeTab, setActiveTab] = useState('calendario');
+  const [inversiones, setInversiones] = useState([]);
+  const [loadingInv, setLoadingInv] = useState(false);
+  const [modalInversion, setModalInversion] = useState(false);
+  const [editingInversion, setEditingInversion] = useState(null);
+  const [formInv, setFormInv] = useState({ titulo: '', descripcion: '', fecha: toDateKey(new Date()), items: [], valorTotal: '', estado: 'pendiente', notas: '' });
 
   const fetchCalendar = useCallback(async () => {
     setLoading(true);
@@ -117,6 +133,20 @@ const Calendario = () => {
     api.get('/suppliers?all=true').then(r => setSuppliers(r.data)).catch(() => {});
     api.get('/customers?all=true').then(r => setCustomers(r.data)).catch(() => {});
   }, []);
+
+  const fetchInvestments = useCallback(async () => {
+    setLoadingInv(true);
+    try {
+      const { data } = await api.get('/investments');
+      setInversiones(data);
+    } catch {
+      toast.error('Error al cargar inversiones');
+    } finally {
+      setLoadingInv(false);
+    }
+  }, []);
+
+  useEffect(() => { if (activeTab === 'inversiones') fetchInvestments(); }, [activeTab, fetchInvestments]);
 
   const today = useMemo(() => {
     const now = new Date();
@@ -257,6 +287,96 @@ const Calendario = () => {
     }
   };
 
+  const emptyInvForm = () => ({ titulo: '', descripcion: '', fecha: toDateKey(new Date()), items: [], valorTotal: '', estado: 'pendiente', notas: '' });
+
+  const addInvItem = () => {
+    setFormInv(prev => ({ ...prev, items: [...prev.items, { nombre: '', cantidad: 1, valorUnitario: '' }] }));
+  };
+
+  const removeInvItem = (idx) => {
+    setFormInv(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== idx) }));
+  };
+
+  const updateInvItem = (idx, field, value) => {
+    setFormInv(prev => {
+      const items = [...prev.items];
+      items[idx] = { ...items[idx], [field]: value };
+      return { ...prev, items };
+    });
+  };
+
+  const calcInvTotal = useMemo(() => {
+    return formInv.items.reduce((sum, item) => {
+      const qty = Number(item.cantidad) || 1;
+      const price = Number(item.valorUnitario) || 0;
+      return sum + qty * price;
+    }, 0);
+  }, [formInv.items]);
+
+  const handleSaveInversion = async () => {
+    if (!formInv.titulo.trim() || !formInv.fecha) {
+      toast.error('Completá título y fecha');
+      return;
+    }
+    const items = formInv.items.map(item => {
+      const qty = Number(item.cantidad) || 1;
+      const price = Number(item.valorUnitario) || 0;
+      return { ...item, cantidad: qty, valorUnitario: price, valorTotal: qty * price };
+    });
+    const total = formInv.valorTotal !== '' && formInv.valorTotal != null
+      ? Number(formInv.valorTotal)
+      : items.reduce((s, i) => s + (i.valorTotal || 0), 0);
+    const payload = {
+      titulo: formInv.titulo.trim(),
+      descripcion: formInv.descripcion || undefined,
+      fecha: formInv.fecha,
+      items,
+      valorTotal: total || undefined,
+      estado: formInv.estado,
+      notas: formInv.notas || undefined
+    };
+    try {
+      if (editingInversion) {
+        await api.put(`/investments/${editingInversion._id}`, payload);
+        toast.success('Inversión actualizada');
+      } else {
+        await api.post('/investments', payload);
+        toast.success('Inversión creada');
+      }
+      setModalInversion(false);
+      setEditingInversion(null);
+      setFormInv(emptyInvForm());
+      fetchInvestments();
+    } catch {
+      toast.error('Error al guardar inversión');
+    }
+  };
+
+  const handleDeleteInversion = async (inv) => {
+    if (!confirm('¿Eliminar esta inversión?')) return;
+    try {
+      await api.delete(`/investments/${inv._id}`);
+      toast.success('Inversión eliminada');
+      fetchInvestments();
+    } catch {
+      toast.error('Error al eliminar');
+    }
+  };
+
+  const openEditInversion = (inv) => {
+    setEditingInversion(inv);
+    setFormInv({
+      titulo: inv.titulo || '',
+      descripcion: inv.descripcion || '',
+      fecha: toDateKey(new Date(inv.fecha)),
+      items: inv.items?.map(i => ({ nombre: i.nombre || '', cantidad: i.cantidad || 1, valorUnitario: i.valorUnitario ?? '' })) || [],
+      valorTotal: inv.valorTotal ?? '',
+      estado: inv.estado || 'pendiente',
+      notas: inv.notas || ''
+    });
+    setModalInversion(true);
+  };
+
   const referenciaOptions = () => {
     if (form.referenciaTipo === 'proveedor') return suppliers.filter(s => s.activo);
     if (form.referenciaTipo === 'cliente') return customers.filter(c => c.activo);
@@ -322,6 +442,13 @@ const Calendario = () => {
 
   const monthLabel = viewDate.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
 
+  const tabFilteredItems = useMemo(() => {
+    if (activeTab === 'calendario' || activeTab === 'inversiones') return [];
+    return items.filter(i => i.origen === 'evento' && i.tipo === activeTab);
+  }, [items, activeTab]);
+
+  const INV_ESTADOS = { pendiente: { label: 'Pendiente', color: 'text-amber-400 bg-amber-500/15 border-amber-500/30' }, completado: { label: 'Completado', color: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30' }, cancelado: { label: 'Cancelado', color: 'text-red-400 bg-red-500/15 border-red-500/30' } };
+
   if (loading && items.length === 0) {
     return <div className="flex h-full items-center justify-center"><div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
   }
@@ -336,15 +463,164 @@ const Calendario = () => {
           </h2>
           <p className="text-textMuted text-sm mt-1">Todas tus tareas, pagos, compras y servicios en un solo lugar</p>
         </div>
-        <button
-          onClick={() => openNew()}
-          className="bg-primary hover:bg-primaryDark text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-lg text-sm font-medium"
-        >
-          <CalendarPlus size={18} />
-          Nuevo evento
-        </button>
+        {activeTab === 'inversiones' ? (
+          <button
+            onClick={() => { setEditingInversion(null); setFormInv(emptyInvForm()); setModalInversion(true); }}
+            className="bg-primary hover:bg-primaryDark text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-lg text-sm font-medium"
+          >
+            <TrendingUp size={18} />
+            Nueva inversión
+          </button>
+        ) : (
+          <button
+            onClick={() => openNew()}
+            className="bg-primary hover:bg-primaryDark text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-lg text-sm font-medium"
+          >
+            <CalendarPlus size={18} />
+            Nuevo evento
+          </button>
+        )}
       </div>
 
+      {/* Tabs de navegación */}
+      <div className="flex gap-1 overflow-x-auto pb-1 border-b border-stone-800">
+        {TABS.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${
+                activeTab === tab.key
+                  ? 'bg-surface border border-stone-800 border-b-surface text-textLight -mb-px'
+                  : 'text-textMuted hover:text-textLight hover:bg-stone-800/30'
+              }`}
+            >
+              <Icon size={16} />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Vista de lista por tipo */}
+      {activeTab !== 'calendario' && activeTab !== 'inversiones' && (
+        <div className="bg-surface rounded-2xl border border-stone-800 p-5">
+          {tabFilteredItems.length === 0 ? (
+            <p className="text-textMuted text-center py-10">No hay eventos de tipo "{TIPOS[activeTab]?.label || activeTab}"</p>
+          ) : (
+            <div className="divide-y divide-stone-800/50">
+              {tabFilteredItems.map(item => {
+                const style = TIPOS[item.tipo] || TIPOS.otro;
+                const done = item.estado === 'completado';
+                return (
+                  <div key={item.id} className={`flex items-center gap-3 py-3 ${done ? 'opacity-50' : ''}`}>
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${style.dot}`} />
+                    <button
+                      onClick={() => setDetalle(item)}
+                      className="flex-1 min-w-0 text-left hover:text-primary transition-colors"
+                    >
+                      <span className={`text-sm font-medium text-textLight block truncate ${done ? 'line-through' : ''}`}>{item.titulo}</span>
+                      <span className="text-xs text-textMuted block">
+                        {new Date(item.fecha).toLocaleDateString('es-AR')}
+                        {item.hora && ` · ${item.hora}`}
+                        {item.importe != null && ` · ${formatCurrency(item.importe)}`}
+                        {item.categoria && ` · ${item.categoria}`}
+                      </span>
+                    </button>
+                    {item.estado !== 'completado' && (
+                      <button
+                        onClick={() => handleToggleStatus(item, 'completado')}
+                        className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                        title="Marcar completado"
+                      >
+                        <CheckCircle2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Vista de inversiones */}
+      {activeTab === 'inversiones' && (
+        <div className="bg-surface rounded-2xl border border-stone-800 p-5">
+          {loadingInv ? (
+            <div className="flex justify-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+          ) : inversiones.length === 0 ? (
+            <p className="text-textMuted text-center py-10">No hay inversiones registradas</p>
+          ) : (
+            <div className="space-y-3">
+              {inversiones.map(inv => {
+                const est = INV_ESTADOS[inv.estado] || INV_ESTADOS.pendiente;
+                return (
+                  <div key={inv._id} className="bg-background/50 border border-stone-800 rounded-xl p-4 hover:border-stone-700 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-sm font-bold text-textLight truncate">{inv.titulo}</h4>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${est.color}`}>{est.label}</span>
+                        </div>
+                        <p className="text-xs text-textMuted">{new Date(inv.fecha).toLocaleDateString('es-AR')}</p>
+                        {inv.descripcion && <p className="text-xs text-textMuted mt-1">{inv.descripcion}</p>}
+                        {inv.items?.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {inv.items.map((item, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-xs text-textMuted">
+                                <span className="w-1 h-1 rounded-full bg-primary/60" />
+                                <span>{item.nombre}</span>
+                                {item.cantidad > 1 && <span>x{item.cantidad}</span>}
+                                {item.valorUnitario > 0 && <span className="text-textLight">· {formatCurrency(item.valorUnitario)}</span>}
+                                {item.valorTotal > 0 && <span className="text-primary">= {formatCurrency(item.valorTotal)}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {inv.valorTotal > 0 && (
+                          <p className="text-sm font-bold text-primary mt-2">Total: {formatCurrency(inv.valorTotal)}</p>
+                        )}
+                        {inv.notas && <p className="text-xs text-textMuted mt-1 italic">{inv.notas}</p>}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {inv.estado === 'pendiente' && (
+                          <button
+                            onClick={async () => { try { await api.patch(`/investments/${inv._id}/estado`, { estado: 'completado' }); toast.success('Marcado como completado'); fetchInvestments(); } catch { toast.error('Error'); } }}
+                            className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                            title="Completar"
+                          >
+                            <CheckCircle2 size={16} />
+                          </button>
+                        )}
+                        {inv.estado !== 'pendiente' && (
+                          <button
+                            onClick={async () => { try { await api.patch(`/investments/${inv._id}/estado`, { estado: 'pendiente' }); toast.success('Marcado como pendiente'); fetchInvestments(); } catch { toast.error('Error'); } }}
+                            className="p-1.5 text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                            title="Marcar pendiente"
+                          >
+                            <Clock size={16} />
+                          </button>
+                        )}
+                        <button onClick={() => openEditInversion(inv)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Editar">
+                          <Pencil size={16} />
+                        </button>
+                        <button onClick={() => handleDeleteInversion(inv)} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors" title="Eliminar">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Vista de calendario */}
+      {activeTab === 'calendario' && (
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* Calendario */}
         <div className="xl:col-span-9 space-y-4">
@@ -492,8 +768,8 @@ const Calendario = () => {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Modal nuevo / editar evento */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setModal(false)}>
           <div className="bg-surface rounded-2xl border border-stone-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -642,8 +918,8 @@ const Calendario = () => {
       {/* Modal detalle */}
       {detalle && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setDetalle(null)}>
-          <div className="bg-surface rounded-2xl border border-stone-800 w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="p-5 border-b border-stone-800 flex items-start justify-between gap-3">
+          <div className="bg-surface rounded-2xl border border-stone-800 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-stone-800 flex items-start justify-between gap-3 sticky top-0 bg-surface z-10">
               <div>
                 <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${(TIPOS[detalle.tipo] || TIPOS.otro).chip}`}>
                   {(TIPOS[detalle.tipo] || TIPOS.otro).label}
@@ -745,6 +1021,110 @@ const Calendario = () => {
                   Entendido
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal nueva / editar inversión */}
+      {modalInversion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setModalInversion(false)}>
+          <div className="bg-surface rounded-2xl border border-stone-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-stone-800 sticky top-0 bg-surface z-10">
+              <h3 className="text-lg font-bold text-textLight">
+                {editingInversion ? 'Editar inversión' : 'Nueva inversión'}
+              </h3>
+              <button onClick={() => setModalInversion(false)} className="text-textMuted hover:text-textLight"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <Field label="Título" required>
+                <input type="text" value={formInv.titulo} onChange={e => setFormInv({ ...formInv, titulo: e.target.value })} placeholder="Ej: Compra de estanterías" className={inputClass} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Fecha" required>
+                  <input type="date" value={formInv.fecha} onChange={e => setFormInv({ ...formInv, fecha: e.target.value })} className={inputClass} />
+                </Field>
+                <Field label="Estado">
+                  <select value={formInv.estado} onChange={e => setFormInv({ ...formInv, estado: e.target.value })} className={inputClass}>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="completado">Completado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="Descripción (opcional)">
+                <textarea value={formInv.descripcion} onChange={e => setFormInv({ ...formInv, descripcion: e.target.value })} rows={2} className={`${inputClass} resize-none`} />
+              </Field>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs text-textMuted font-medium">Items</label>
+                  <button type="button" onClick={addInvItem} className="text-xs text-primary hover:text-primaryDark flex items-center gap-1 font-medium">
+                    <Plus size={14} /> Agregar item
+                  </button>
+                </div>
+                {formInv.items.length === 0 && (
+                  <p className="text-xs text-textMuted text-center py-4 bg-background/50 border border-stone-800 rounded-xl">
+                    Sin items. Hacé click en "Agregar item" para comenzar.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {formInv.items.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-background/50 border border-stone-800 rounded-lg p-2">
+                      <input
+                        type="text"
+                        value={item.nombre}
+                        onChange={e => updateInvItem(idx, 'nombre', e.target.value)}
+                        placeholder="Nombre"
+                        className="flex-1 bg-transparent border-none text-sm text-textLight focus:outline-none placeholder:text-textMuted"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.cantidad}
+                        onChange={e => updateInvItem(idx, 'cantidad', e.target.value)}
+                        className="w-14 bg-background border border-stone-700 rounded px-2 py-1 text-xs text-textLight text-center focus:outline-none focus:border-primary"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.valorUnitario}
+                        onChange={e => updateInvItem(idx, 'valorUnitario', e.target.value)}
+                        placeholder="$ Unit."
+                        className="w-20 bg-background border border-stone-700 rounded px-2 py-1 text-xs text-textLight text-right focus:outline-none focus:border-primary"
+                      />
+                      <button type="button" onClick={() => removeInvItem(idx)} className="p-1 text-red-400 hover:bg-red-500/10 rounded transition-colors">
+                        <Minus size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {formInv.items.length > 0 && (
+                <div className="bg-background/50 border border-stone-800 rounded-xl p-3">
+                  <div className="flex justify-between text-xs text-textMuted">
+                    <span>Subtotal items:</span>
+                    <span className="text-textLight font-medium">{formatCurrency(calcInvTotal)}</span>
+                  </div>
+                </div>
+              )}
+
+              <Field label="Valor total manual (opcional)">
+                <input type="number" min="0" value={formInv.valorTotal} onChange={e => setFormInv({ ...formInv, valorTotal: e.target.value })} placeholder="Si lo dejás vacío, se calcula de los items" className={inputClass} />
+              </Field>
+
+              <Field label="Notas (opcional)">
+                <textarea value={formInv.notas} onChange={e => setFormInv({ ...formInv, notas: e.target.value })} rows={2} className={`${inputClass} resize-none`} placeholder="Observaciones adicionales..." />
+              </Field>
+            </div>
+            <div className="flex gap-3 p-5 border-t border-stone-800 sticky bottom-0 bg-surface">
+              <button onClick={() => setModalInversion(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-700 text-textMuted hover:text-textLight transition-colors text-sm font-medium">
+                Cancelar
+              </button>
+              <button onClick={handleSaveInversion} className="flex-1 px-4 py-2.5 rounded-lg bg-primary hover:bg-primaryDark text-white transition-colors text-sm font-medium shadow-lg">
+                {editingInversion ? 'Guardar cambios' : 'Crear inversión'}
+              </button>
             </div>
           </div>
         </div>

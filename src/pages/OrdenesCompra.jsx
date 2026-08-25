@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
-import { ShoppingCart, Plus, Check, Ban, Search, X } from 'lucide-react';
+import { ShoppingCart, Plus, Check, Ban, Search, X, Pencil, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
@@ -12,6 +12,8 @@ const OrdenesCompra = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [viewing, setViewing] = useState(null);
   const [form, setForm] = useState({ proveedor: '', items: [], notas: '' });
 
   const fetchData = useCallback(async () => {
@@ -36,7 +38,7 @@ const OrdenesCompra = () => {
   const handleSave = async () => {
     try {
       const payload = {
-        proveedor: form.proveedor,
+        proveedor: form.proveedor || undefined,
         items: form.items.map(i => ({
           producto: i.producto,
           cantidad: Number(i.cantidad),
@@ -44,14 +46,22 @@ const OrdenesCompra = () => {
         })),
         notas: form.notas,
       };
-      const { data } = await api.post('/purchase-orders', payload);
-      const populated = await api.get(`/purchase-orders/${data._id}`);
-      setOrders(prev => [populated.data, ...prev]);
-      toast.success('Orden de compra creada');
+      if (editing) {
+        const { data } = await api.put(`/purchase-orders/${editing._id}`, payload);
+        const populated = await api.get(`/purchase-orders/${data._id}`);
+        setOrders(prev => prev.map(o => o._id === data._id ? populated.data : o));
+        toast.success('Orden actualizada');
+      } else {
+        const { data } = await api.post('/purchase-orders', payload);
+        const populated = await api.get(`/purchase-orders/${data._id}`);
+        setOrders(prev => [populated.data, ...prev]);
+        toast.success('Orden de compra creada');
+      }
       setModal(false);
+      setEditing(null);
       setForm({ proveedor: '', items: [], notas: '' });
     } catch {
-      toast.error('Error al crear orden');
+      toast.error(editing ? 'Error al actualizar orden' : 'Error al crear orden');
     }
   };
 
@@ -73,6 +83,20 @@ const OrdenesCompra = () => {
     } catch {
       toast.error('Error al cancelar');
     }
+  };
+
+  const openEdit = (order) => {
+    setEditing(order);
+    setForm({
+      proveedor: order.proveedor?._id || order.proveedor || '',
+      items: order.items?.map(i => ({
+        producto: i.producto?._id || i.producto || '',
+        cantidad: i.cantidad || 1,
+        precioUnitario: i.precioUnitario || 0
+      })) || [],
+      notas: order.notas || ''
+    });
+    setModal(true);
   };
 
   const getStatusBadge = (estado) => {
@@ -164,8 +188,12 @@ const OrdenesCompra = () => {
                 <td className="px-4 py-3 text-center">{getStatusBadge(o.estado)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => setViewing(o)} title="Ver detalle"
+                      className="p-1.5 text-textMuted hover:text-textLight hover:bg-stone-700/50 rounded-lg transition-colors"><Eye size={15} /></button>
                     {o.estado === 'pendiente' && (
                       <>
+                        <button onClick={() => openEdit(o)} title="Editar"
+                          className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"><Pencil size={15} /></button>
                         <button onClick={() => handleReceiveOrder(o._id)} title="Recibir"
                           className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded-lg transition-colors"><Check size={15} /></button>
                         <button onClick={() => handleCancelOrder(o._id)} title="Cancelar"
@@ -181,15 +209,15 @@ const OrdenesCompra = () => {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setModal(false)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => { setModal(false); setEditing(null); }}>
           <div className="bg-surface rounded-2xl border border-stone-800 w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-5 border-b border-stone-800">
-              <h3 className="text-lg font-bold text-textLight">Nueva Orden de Compra</h3>
-              <button onClick={() => setModal(false)} className="text-textMuted hover:text-textLight"><X size={20} /></button>
+              <h3 className="text-lg font-bold text-textLight">{editing ? `Editar ${editing.numero}` : 'Nueva Orden de Compra'}</h3>
+              <button onClick={() => { setModal(false); setEditing(null); }} className="text-textMuted hover:text-textLight"><X size={20} /></button>
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs text-textMuted mb-1 font-medium">Proveedor *</label>
+                <label className="block text-xs text-textMuted mb-1 font-medium">Proveedor (opcional)</label>
                 <select value={form.proveedor} onChange={e => setForm({ ...form, proveedor: e.target.value })}
                   className="w-full bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary">
                   <option value="">Seleccionar...</option>
@@ -243,9 +271,82 @@ const OrdenesCompra = () => {
               </div>
             </div>
             <div className="flex gap-3 p-5 border-t border-stone-800">
-              <button onClick={() => setModal(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-700 text-textMuted hover:text-textLight transition-colors text-sm font-medium">Cancelar</button>
+              <button onClick={() => { setModal(false); setEditing(null); }} className="flex-1 px-4 py-2.5 rounded-lg border border-stone-700 text-textMuted hover:text-textLight transition-colors text-sm font-medium">Cancelar</button>
               <button onClick={handleSave} className="flex-1 px-4 py-2.5 rounded-lg bg-primary hover:bg-primaryDark text-white transition-colors text-sm font-medium shadow-lg">
-                Crear Orden
+                {editing ? 'Guardar cambios' : 'Crear Orden'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal detalle de orden */}
+      {viewing && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setViewing(null)}>
+          <div className="bg-surface rounded-2xl border border-stone-800 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-stone-800 sticky top-0 bg-surface z-10">
+              <div>
+                <h3 className="text-lg font-bold text-textLight">{viewing.numero}</h3>
+                <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                  viewing.estado === 'pendiente' ? 'bg-amber-500/20 text-amber-400' :
+                  viewing.estado === 'recibida' ? 'bg-emerald-500/20 text-emerald-400' :
+                  'bg-red-500/20 text-red-400'
+                }`}>{viewing.estado === 'pendiente' ? 'Pendiente' : viewing.estado === 'recibida' ? 'Recibida' : 'Cancelada'}</span>
+              </div>
+              <button onClick={() => setViewing(null)} className="text-textMuted hover:text-textLight"><X size={20} /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-textMuted text-xs mb-1">Proveedor</p>
+                  <p className="text-textLight font-medium">{viewing.proveedor?.nombre || 'Sin proveedor'}</p>
+                </div>
+                <div>
+                  <p className="text-textMuted text-xs mb-1">Fecha</p>
+                  <p className="text-textLight font-medium">{new Date(viewing.fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-textMuted text-xs mb-2 font-medium">Productos ({viewing.items?.length || 0})</p>
+                <div className="bg-background/50 border border-stone-800 rounded-xl overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-stone-800 text-xs text-textMuted">
+                        <th className="px-3 py-2 text-left">Producto</th>
+                        <th className="px-3 py-2 text-center">Cant.</th>
+                        <th className="px-3 py-2 text-right">P. Unit.</th>
+                        <th className="px-3 py-2 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-800/50">
+                      {viewing.items?.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="px-3 py-2 text-textLight">{item.producto?.nombre || 'Producto eliminado'}</td>
+                          <td className="px-3 py-2 text-center text-textMuted">{item.cantidad}</td>
+                          <td className="px-3 py-2 text-right text-textMuted">{formatCurrency(item.precioUnitario)}</td>
+                          <td className="px-3 py-2 text-right font-medium text-textLight">{formatCurrency(item.cantidad * item.precioUnitario)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-between items-center mt-3 px-1">
+                  <span className="text-sm text-textMuted">Total</span>
+                  <span className="text-lg font-bold text-emerald-400">{formatCurrency(viewing.total)}</span>
+                </div>
+              </div>
+
+              {viewing.notas && (
+                <div>
+                  <p className="text-textMuted text-xs mb-1">Notas</p>
+                  <p className="text-textMuted bg-background/50 border border-stone-800 rounded-lg p-3 text-sm whitespace-pre-wrap">{viewing.notas}</p>
+                </div>
+              )}
+            </div>
+            <div className="p-5 border-t border-stone-800">
+              <button onClick={() => setViewing(null)} className="w-full px-4 py-2.5 rounded-lg bg-primary hover:bg-primaryDark text-white transition-colors text-sm font-medium shadow-lg">
+                Cerrar
               </button>
             </div>
           </div>
