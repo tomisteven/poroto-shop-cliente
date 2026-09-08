@@ -117,7 +117,7 @@ const Calendario = () => {
     try {
       const { start, end } = getMonthRange(viewDate);
       const { data } = await api.get('/calendar', {
-        params: { startDate: toDateKey(start), endDate: toDateKey(end) }
+        params: { startDate: toDateKey(start), endDate: toDateKey(end), incluirVencidos: '1' }
       });
       setItems(data);
     } catch {
