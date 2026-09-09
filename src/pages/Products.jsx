@@ -410,7 +410,7 @@ const Products = () => {
   return (
     <div className="space-y-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div>
             <h2 className="text-3xl font-bold text-textLight">
               Productos 
@@ -448,14 +448,14 @@ const Products = () => {
             )}
           </button>
         </div>
-<div className="flex items-center gap-3">
+<div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button 
               onClick={exportToCSV}
-              className="bg-stone-800 hover:bg-stone-700 text-textLight px-4 py-2 rounded-lg transition-colors flex items-center border border-stone-700 shadow-sm"
+              className="bg-stone-800 hover:bg-stone-700 text-textLight px-3 md:px-4 py-2 rounded-lg transition-colors flex items-center border border-stone-700 shadow-sm whitespace-nowrap"
               title="Exportar inventario a Excel/CSV"
             >
-              <Download size={18} className="mr-2 text-emerald-400" />
-              Exportar
+              <Download size={18} className="mr-1 md:mr-2 text-emerald-400" />
+              <span className="hidden sm:inline">Exportar</span>
             </button>
             <button
               onClick={() => setFilterOnlyCombos(!filterOnlyCombos)}
@@ -467,20 +467,20 @@ const Products = () => {
               title="Filtrar solo combos"
             >
               <Puzzle size={14} className="mr-1" />
-              Combos
+              <span className="hidden sm:inline">Combos</span>
             </button>
             {(user?.rol === 'admin') && (
                <>
                  <button 
                    onClick={openComboModal}
-                   className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center shadow-lg shadow-purple-500/20"
+                   className="bg-purple-600 hover:bg-purple-700 text-white px-3 md:px-4 py-2 rounded-lg transition-colors flex items-center shadow-lg shadow-purple-500/20 whitespace-nowrap"
                  >
                    <Puzzle size={18} className="mr-2" />
                    Crear Combo
                  </button>
                  <button 
                    onClick={openNewModal}
-                   className="bg-primary hover:bg-primaryDark text-white px-4 py-2 rounded-lg transition-colors flex items-center shadow-lg shadow-primary/20"
+                   className="bg-primary hover:bg-primaryDark text-white px-3 md:px-4 py-2 rounded-lg transition-colors flex items-center shadow-lg shadow-primary/20 whitespace-nowrap"
                  >
                    <PlusCircle size={18} className="mr-2" />
                    Nuevo Producto
@@ -583,7 +583,7 @@ const Products = () => {
       </div>
 
       <div className="flex-1 bg-surface border border-stone-800 rounded-xl overflow-hidden flex flex-col">
-        <div className="overflow-x-auto flex-1 custom-scrollbar">
+        <div className="hidden md:block overflow-x-auto flex-1 custom-scrollbar">
           <table className="w-full text-left text-sm text-textLight">
             <thead className="text-xs text-textMuted uppercase bg-stone-900 border-b border-stone-800 sticky top-0">
               <tr>
@@ -667,12 +667,79 @@ const Products = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile - Tarjetas de Producto */}
+        <div className="md:hidden flex-1 overflow-y-auto custom-scrollbar divide-y divide-stone-800">
+          {loading ? (
+            <div className="flex justify-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+          ) : displayProducts.length === 0 ? (
+            <div className="px-4 py-12 text-center text-textMuted">
+              {filterWithoutMovement ? 'No hay productos sin movimiento en esta categoría.' : 'No se encontraron productos.'}
+            </div>
+          ) : (
+            displayProducts.map((p) => {
+              const isSelected = selectedIds.includes(p._id);
+              return (
+                <div key={p._id} className={`p-4 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}>
+                  <div className="flex items-start gap-3">
+                    <button onClick={() => toggleSelect(p._id)} className="text-textMuted hover:text-primary shrink-0 mt-0.5">
+                      {isSelected ? <CheckSquare size={18} className="text-primary" /> : <Square size={18} />}
+                    </button>
+                    {p.imagen && <img src={p.imagen} alt={p.nombre} className="w-10 h-10 rounded-lg object-cover shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-textLight text-sm">{p.nombre}</p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={() => openStockModal(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={17} /></button>
+                          <button onClick={() => openEditModal(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={17} /></button>
+                          {user?.rol === 'admin' && (
+                            <button onClick={() => handleDelete(p._id)} className="text-danger hover:text-red-400" title="Eliminar"><Trash2 size={17} /></button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-textMuted font-mono mt-0.5 truncate">{p.sku} · {p.categoria?.nombre || '-'}</p>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.stock > p.stockMinimo ? 'bg-emerald-500/20 text-emerald-500' : p.stock > 0 ? 'bg-warning/20 text-warning' : 'bg-danger/20 text-danger'}`}>
+                          {formatStock(p.stock)} {p.unidadMedida === 'unidad' ? 'u.' : p.unidadMedida}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${calculateMargin(p.precioCompra, p.precioVenta) > 30 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                          Margen {calculateMargin(p.precioCompra, p.precioVenta)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button onClick={() => quickAdjustStock(p, -1)} disabled={p.stock <= 0} className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors disabled:opacity-50"><Minus size={15} /></button>
+                    <div className="flex-1 text-center">
+                      <span className="text-sm font-bold text-textLight">{formatStock(p.stock)} {p.unidadMedida === 'unidad' ? 'unidades' : p.unidadMedida}</span>
+                    </div>
+                    <button onClick={() => quickAdjustStock(p, 1)} className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors"><Plus size={15} /></button>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
+                      <p className="text-[9px] uppercase font-bold text-textMuted">Compra</p>
+                      <p className="text-xs font-bold text-textLight">{formatCurrency(p.precioCompra)}</p>
+                    </div>
+                    <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
+                      <p className="text-[9px] uppercase font-bold text-textMuted">Venta</p>
+                      <p className="text-xs font-bold text-textLight">{formatCurrency(p.precioVenta)}</p>
+                    </div>
+                    <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
+                      <p className="text-[9px] uppercase font-bold text-textMuted">P. Kilo</p>
+                      <p className="text-xs font-bold text-primary">{p.precioKilo != null && p.precioKilo > 0 ? formatCurrency(p.precioKilo) : '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Modal Form */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface w-full max-w-2xl rounded-2xl border border-stone-700 shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface w-full max-w-2xl rounded-t-2xl md:rounded-2xl border border-stone-700 shadow-2xl flex flex-col max-h-[92dvh] md:max-h-[90vh]">
             <div className="flex justify-between items-center p-6 border-b border-stone-800">
               <h3 className="text-xl font-bold text-textLight">{editingId ? 'Editar Producto' : 'Nuevo Producto'}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-textMuted hover:text-textLight"><X size={24} /></button>
@@ -821,8 +888,8 @@ const Products = () => {
 
       {/* Modal Ajuste Stock */}
       {isStockModalOpen && stockProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface w-full max-w-sm rounded-2xl border border-stone-700 shadow-2xl flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface w-full max-w-sm rounded-t-2xl md:rounded-2xl border border-stone-700 shadow-2xl flex flex-col">
             <div className="flex justify-between items-center p-6 border-b border-stone-800">
               <div>
                  <h3 className="text-xl font-bold text-textLight">Ajustar Stock</h3>
@@ -862,8 +929,8 @@ const Products = () => {
 
       {/* Modal Crear Combo Manual */}
       {isComboModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface w-full max-w-3xl rounded-2xl border border-stone-700 shadow-2xl flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface w-full max-w-3xl rounded-t-2xl md:rounded-2xl border border-stone-700 shadow-2xl flex flex-col max-h-[92dvh] md:max-h-[90vh]">
             <div className="flex justify-between items-center p-6 border-b border-stone-800">
               <h3 className="text-xl font-bold text-textLight">Crear Combo Manual</h3>
               <button onClick={() => setIsComboModalOpen(false)} className="text-textMuted hover:text-textLight"><X size={24} /></button>

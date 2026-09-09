@@ -19,8 +19,6 @@ const Catalogo = () => {
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
 
-  const [weightInputs, setWeightInputs] = useState({});
-
   useEffect(() => {
     const fetchCatalog = async () => {
       try {
@@ -39,39 +37,45 @@ const Catalogo = () => {
 
   const isKg = (p) => p.unidadMedida === 'kg';
 
-  const addToCart = useCallback((product, qty = 1) => {
+  const addToCart = useCallback((product, qty = 1, tipo = 'bag') => {
     // Validar combos sin stock
     if (product.esCombo && product.comboVendible === false) {
       alert('❌ Este combo no tiene stock disponible en sus componentes. No se puede vender hasta reponer.');
       return;
     }
+    const esKilo = tipo === 'kilo';
+    const key = `${product._id}:${tipo}`;
+    const precio = esKilo
+      ? (Number(product.precioKilo) > 0 ? Number(product.precioKilo) : Number(product.precioVenta))
+      : Number(product.precioVenta);
     setCart((prev) => {
-      const exists = prev.find((i) => i.producto === product._id);
+      const exists = prev.find((i) => i.key === key);
       if (exists) {
         return prev.map((i) =>
-          i.producto === product._id
+          i.key === key
             ? { ...i, cantidad: Math.round((i.cantidad + qty) * 100) / 100 }
             : i
         );
       }
       return [...prev, {
+        key,
         producto: product._id,
+        tipo,
         nombre: product.nombre,
-        precio: product.precioVenta,
+        precio,
         cantidad: Math.round(qty * 100) / 100,
         stock: product.stock,
-        unidadMedida: product.unidadMedida || 'unidad',
+        unidadMedida: esKilo ? 'kg' : (product.unidadMedida || 'unidad'),
       }];
     });
-    setWeightInputs((prev) => ({ ...prev, [product._id]: '' }));
   }, []);
 
-  const updateCartQty = useCallback((productId, delta) => {
+  const updateCartQty = useCallback((productId, delta, tipo) => {
     setCart((prev) => {
       return prev
         .map((i) => {
-          if (i.producto !== productId) return i;
-          const step = i.unidadMedida === 'kg' ? 0.5 : 1;
+          if (i.producto !== productId || i.tipo !== tipo) return i;
+          const step = i.tipo === 'kilo' ? 0.5 : 1;
           const newQty = Math.round((i.cantidad + delta * step) * 100) / 100;
           return { ...i, cantidad: newQty };
         })
@@ -79,29 +83,16 @@ const Catalogo = () => {
     });
   }, []);
 
-  const removeFromCart = useCallback((productId) => {
-    setCart((prev) => prev.filter((i) => i.producto !== productId));
+  const removeFromCart = useCallback((productId, tipo) => {
+    setCart((prev) => prev.filter((i) => i.producto !== productId || i.tipo !== tipo));
   }, []);
-
-  const handleWeightInput = useCallback((productId, value) => {
-    setWeightInputs((prev) => ({ ...prev, [productId]: value }));
-  }, []);
-
-  const submitWeight = useCallback((product) => {
-    const raw = weightInputs[product._id];
-    if (!raw && raw !== 0) return;
-    const num = parseFloat(String(raw).replace(',', '.'));
-    if (isNaN(num) || num <= 0) return;
-    const qty = Math.round(num * 100) / 100;
-    addToCart(product, qty);
-  }, [weightInputs, addToCart]);
 
   const cartTotal = useMemo(() => cart.reduce((acc, i) => acc + i.precio * i.cantidad, 0), [cart]);
   const cartCount = useMemo(() => cart.reduce((acc, i) => acc + i.cantidad, 0), [cart]);
 
   const handleWhatsAppShare = () => {
     const grouped = {};
-    products.forEach((p) => {
+    products.filter(p => p.precioVenta > 0).forEach((p) => {
       const cat = p.categoria?.nombre || 'Sin categoría';
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(p);
@@ -133,7 +124,7 @@ const Catalogo = () => {
       const { data } = await api.post('/orders/public', {
         clienteNombre: orderData.nombre,
         clienteTelefono: orderData.telefono,
-        items: cart.map((i) => ({ producto: i.producto, cantidad: i.cantidad })),
+        items: cart.map((i) => ({ producto: i.producto, cantidad: i.cantidad, esVentaSuelta: i.tipo === 'kilo' })),
         notas: orderData.notas,
       });
       setOrderSuccess(data);
@@ -172,7 +163,7 @@ const Catalogo = () => {
   };
 
   const filtered = useMemo(() => {
-    let result = products;
+    let result = products.filter(p => p.precioVenta > 0);
     if (selectedCategory !== 'all') {
       result = result.filter(p => p.categoria?._id === selectedCategory);
     }
@@ -295,9 +286,58 @@ const Catalogo = () => {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filtered.map(p => {
-                const inCart = cart.find((i) => i.producto === p._id);
                 const soldByKg = isKg(p);
-                const weightVal = weightInputs[p._id] || '';
+                const vendeSuelto = soldByKg || (p.precioKilo && p.precioKilo > 0);
+                const bagCart = cart.find((i) => i.producto === p._id && i.tipo === 'bag');
+                const kiloCart = cart.find((i) => i.producto === p._id && i.tipo === 'kilo');
+
+                const inCartControls = (item, label) => (
+                  <div className="flex items-center justify-between bg-[#222] rounded-lg px-3 py-2 mb-3 border border-emerald-600/30">
+                    <span className="text-xs text-emerald-400 font-medium">{label}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateCartQty(p._id, -1, item.tipo)}
+                        className="w-7 h-7 rounded-md bg-[#1a1a1a] border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
+                      >
+                        <Minus size={12} />
+                      </button>
+                      <span className="text-sm font-bold text-white min-w-[40px] text-center">
+                        {item.cantidad} {item.tipo === 'kilo' ? 'kg' : 'un'}
+                      </span>
+                      <button
+                        onClick={() => updateCartQty(p._id, 1, item.tipo)}
+                        className="w-7 h-7 rounded-md bg-[#1a1a1a] border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
+                      >
+                        <Plus size={12} />
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(p._id, item.tipo)}
+                        className="w-7 h-7 rounded-md text-neutral-500 hover:text-red-400 flex items-center justify-center transition-colors"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+
+                const kiloButtons = () => (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => addToCart(p, 1, 'kilo')}
+                      disabled={p.stock <= 0}
+                      className="py-2 rounded-lg bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-sm font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      1 kg
+                    </button>
+                    <button
+                      onClick={() => addToCart(p, 2, 'kilo')}
+                      disabled={p.stock <= 0}
+                      className="py-2 rounded-lg bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-sm font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      2 kg
+                    </button>
+                  </div>
+                );
 
                 return (
                   <div
@@ -318,7 +358,7 @@ const Catalogo = () => {
                         </span>
                       )}
                       <span className={`text-xs font-medium ${p.stock > 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-                        {p.stock > 0 ? `${p.stock} ${soldByKg ? 'kg' : 'un'} disp.` : 'Sin stock'}
+                        {p.stock > 0 ? 'En stock' : 'Sin stock'}
                       </span>
                     </div>
 
@@ -327,91 +367,83 @@ const Catalogo = () => {
                       {p.nombre}
                     </h3>
 
-                    {/* Price */}
-                    <p className="text-lg font-bold text-white mb-3">
-                      {formatCurrency(p.precioVenta)}
-                      {soldByKg && <span className="text-xs font-normal text-neutral-500 ml-1">/kg</span>}
-                    </p>
+                    {soldByKg ? (
+                      <>
+                        {/* Precio por kilo */}
+                        <p className="text-lg font-bold text-white mb-3">
+                          {formatCurrency(p.precioVenta)}
+                          <span className="text-xs font-normal text-neutral-500 ml-1">/kg</span>
+                        </p>
+                        {p.stock > 0 && !kiloCart && (
+                          <div className="mb-3">{kiloButtons()}</div>
+                        )}
+                        {kiloCart && inCartControls(kiloCart, 'En tu pedido')}
+                      </>
+                    ) : (
+                      <>
+                        {/* Precio bolsa */}
+                        <p className="text-lg font-bold text-white mb-3">
+                          {formatCurrency(p.precioVenta)}
+                          {p.kilosPorBolsa && (
+                            <span className="text-xs font-normal text-neutral-500 ml-1">bolsa · {p.kilosPorBolsa}kg</span>
+                          )}
+                        </p>
 
-                    {/* Weight input for kg products */}
-                    {soldByKg && p.stock > 0 && !inCart && (
-                      <div className="flex gap-2 mb-3">
-                        <div className="relative flex-1">
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            placeholder="Kg"
-                            value={weightVal}
-                            onChange={(e) => handleWeightInput(p._id, e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') submitWeight(p); }}
-                            className="w-full bg-[#222] border border-[#333] rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-600 outline-none"
-                          />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500">kg</span>
-                        </div>
-                        <button
-                          onClick={() => submitWeight(p)}
-                          disabled={!weightVal || parseFloat(String(weightVal).replace(',', '.')) <= 0}
-                          className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    )}
+                        {vendeSuelto ? (
+                          /* Fraccionable: bolsa + comprar suelto */
+                          <div className="space-y-3 mb-3">
+                            {bagCart ? (
+                              inCartControls(bagCart, 'Bolsa en pedido')
+                            ) : p.stock > 0 && !p.esCombo && (
+                              <button
+                                onClick={() => addToCart(p, 1, 'bag')}
+                                className="w-full py-2 rounded-lg border border-[#333] text-neutral-300 text-sm font-medium hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors"
+                              >
+                                Agregar bolsa
+                              </button>
+                            )}
 
-                    {/* Add button for unit products */}
-                    {!soldByKg && p.stock > 0 && !inCart && !p.esCombo && (
-                      <button
-                        onClick={() => addToCart(p, 1)}
-                        className="w-full py-2 rounded-lg border border-[#333] text-neutral-300 text-sm font-medium hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors mb-3"
-                      >
-                        Agregar
-                      </button>
-                    )}
-
-                    {/* Combo sin stock */}
-                    {!soldByKg && p.esCombo && p.comboVendible === false && !inCart && (
-                      <button
-                        disabled
-                        className="w-full py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium cursor-not-allowed mb-3"
-                        title="Combo sin stock en componentes"
-                      >
-                        ⚠ Sin stock (combo)
-                      </button>
-                    )}
-
-                    {/* In cart controls */}
-                    {inCart && (
-                      <div className="flex items-center justify-between bg-[#222] rounded-lg px-3 py-2 mb-3 border border-emerald-600/30">
-                        <span className="text-xs text-emerald-400 font-medium">En tu pedido</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateCartQty(p._id, -1)}
-                            className="w-7 h-7 rounded-md bg-[#1a1a1a] border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
-                          >
-                            <Minus size={12} />
-                          </button>
-                          <span className="text-sm font-bold text-white min-w-[40px] text-center">
-                            {inCart.cantidad} {soldByKg ? 'kg' : 'un'}
-                          </span>
-                          <button
-                            onClick={() => updateCartQty(p._id, 1)}
-                            className="w-7 h-7 rounded-md bg-[#1a1a1a] border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
-                          >
-                            <Plus size={12} />
-                          </button>
-                          <button
-                            onClick={() => removeFromCart(p._id)}
-                            className="w-7 h-7 rounded-md text-neutral-500 hover:text-red-400 flex items-center justify-center transition-colors"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
+                            <div className="border-t border-[#2a2a2a] pt-3">
+                              <p className="text-xs text-neutral-500 mb-1.5">
+                                ¿Comprás suelto? <span className="text-neutral-300 font-medium">{formatCurrency(p.precioKilo)}/kg</span>
+                              </p>
+                              {kiloCart ? (
+                                inCartControls(kiloCart, 'Suelto en pedido')
+                              ) : p.stock > 0 ? (
+                                kiloButtons()
+                              ) : (
+                                <p className="text-xs text-neutral-600">Agotado</p>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          /* Normal: solo bolsa / unidad */
+                          <>
+                            {p.stock > 0 && !bagCart && !p.esCombo && (
+                              <button
+                                onClick={() => addToCart(p, 1, 'bag')}
+                                className="w-full py-2 rounded-lg border border-[#333] text-neutral-300 text-sm font-medium hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors mb-3"
+                              >
+                                Agregar
+                              </button>
+                            )}
+                            {p.esCombo && p.comboVendible === false && !bagCart && (
+                              <button
+                                disabled
+                                className="w-full py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium cursor-not-allowed mb-3"
+                                title="Combo sin stock en componentes"
+                              >
+                                ⚠ Sin stock (combo)
+                              </button>
+                            )}
+                            {bagCart && inCartControls(bagCart, 'En tu pedido')}
+                          </>
+                        )}
+                      </>
                     )}
 
                     {/* Sold out */}
-                    {p.stock <= 0 && (
+                    {p.stock <= 0 && !bagCart && !kiloCart && (
                       <div className="py-2 text-center mb-3">
                         <span className="text-xs text-neutral-500 font-medium">Agotado</span>
                       </div>
@@ -463,14 +495,14 @@ const Catalogo = () => {
                     const soldByKg = item.unidadMedida === 'kg';
                     const unit = soldByKg ? 'kg' : 'un';
                     return (
-                      <div key={item.producto} className="flex items-center gap-3 py-3 border-b border-[#222] last:border-0">
+                      <div key={item.key} className="flex items-center gap-3 py-3 border-b border-[#222] last:border-0">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-white leading-snug">{item.nombre}</p>
                           <p className="text-xs text-neutral-500">{formatCurrency(item.precio)} / {unit}</p>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => updateCartQty(item.producto, -1)}
+                            onClick={() => updateCartQty(item.producto, -1, item.tipo)}
                             className="w-7 h-7 rounded-md border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center"
                           >
                             <Minus size={12} />
@@ -479,7 +511,7 @@ const Catalogo = () => {
                             {item.cantidad} {unit}
                           </span>
                           <button
-                            onClick={() => updateCartQty(item.producto, 1)}
+                            onClick={() => updateCartQty(item.producto, 1, item.tipo)}
                             className="w-7 h-7 rounded-md border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center"
                           >
                             <Plus size={12} />
@@ -489,7 +521,7 @@ const Catalogo = () => {
                           {formatCurrency(item.precio * item.cantidad)}
                         </span>
                         <button
-                          onClick={() => removeFromCart(item.producto)}
+                          onClick={() => removeFromCart(item.producto, item.tipo)}
                           className="text-neutral-500 hover:text-red-400"
                         >
                           <Trash2 size={14} />
@@ -570,7 +602,7 @@ const Catalogo = () => {
                 {cart.map((i) => {
                   const unit = i.unidadMedida === 'kg' ? 'kg' : 'un';
                   return (
-                    <div key={i.producto} className="flex justify-between text-sm py-1">
+                    <div key={i.key} className="flex justify-between text-sm py-1">
                       <span className="text-neutral-300">{i.nombre} x{i.cantidad} {unit}</span>
                       <span className="font-medium text-white">{formatCurrency(i.precio * i.cantidad)}</span>
                     </div>

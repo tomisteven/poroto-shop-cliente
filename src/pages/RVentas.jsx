@@ -5,8 +5,9 @@ import {
   ResponsiveContainer, Cell
 } from 'recharts';
 import {
-  TrendingUp, DollarSign, ShoppingCart, Package, Search,
-  Percent, ArrowUpDown, Download, } from 'lucide-react';
+  DollarSign, ShoppingCart, Package, Search,
+  Percent, Download, Weight, Box
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
@@ -119,20 +120,6 @@ const RVentas = () => {
 
   const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#f97316', '#14b8a6', '#6366f1'];
 
-  const SortHeader = ({ field, label, className = '' }) => (
-    <th
-      className={`px-4 py-3 cursor-pointer hover:text-primary transition-colors select-none ${className}`}
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        {sortField === field && (
-          <ArrowUpDown size={12} className={`${sortDir === 'asc' ? 'rotate-180' : ''} text-primary`} />
-        )}
-      </div>
-    </th>
-  );
-
   return (
     <div className="space-y-6 pb-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -241,9 +228,9 @@ const RVentas = () => {
       <div className="bg-surface rounded-xl border border-stone-800 overflow-hidden">
         <div className="p-4 border-b border-stone-800 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <h3 className="text-lg font-semibold text-textLight">
-            Ranking de Productos
+            Productos
             <span className="text-sm font-normal text-textMuted ml-2">
-              ({fmt(totalUnidad)} unid. + {fmt(totalSuelta)} kg • {sortedProducts.length} productos)
+              ({sortedProducts.length} productos con ventas)
             </span>
           </h3>
           <div className="relative">
@@ -258,68 +245,86 @@ const RVentas = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-textLight">
-            <thead className="bg-stone-900/50 text-xs text-textMuted uppercase border-b border-stone-800">
-              <tr>
-                <th className="px-4 py-3 w-12">#</th>
-                <th className="px-4 py-3">Producto</th>
-                <th className="px-4 py-3">Categoría</th>
-                <SortHeader field="cantidadUnidad" label="Unid. Vendidas" className="text-center" />
-                <SortHeader field="cantidadSuelta" label="Kilos Vendidos" className="text-center" />
-                <SortHeader field="ingresosUnidad" label="$ x Unidad" className="text-right" />
-                <SortHeader field="ingresosSuelta" label="$ x Kilo" className="text-right" />
-                <SortHeader field="costoTotal" label="Costo Total" className="text-right" />
-                <SortHeader field="ganancia" label="Ganancia" className="text-right" />
-                <SortHeader field="margen" label="Margen" className="text-right" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-800">
-              {sortedProducts.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-textMuted">
-                    No se encontraron productos{search ? ` para "${search}"` : ' con ventas'}
-                  </td>
-                </tr>
-              )}
-              {sortedProducts.map((p, i) => {
-                const actualRank = filteredProducts.indexOf(p) + 1;
-                return (
-                  <tr key={p._id} className="hover:bg-stone-800/40 transition-colors">
-                    <td className="px-4 py-3 font-bold text-stone-500 text-center">#{actualRank}</td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{p.nombre}</div>
-                      <div className="text-xs text-textMuted">{p.sku}</div>
-                    </td>
-                    <td className="px-4 py-3 text-textMuted">{p.categoria}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="bg-primary/20 text-primary px-2 py-1 rounded font-bold text-xs">
-                        {fmt(p.cantidadUnidad)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {p.cantidadSuelta > 0 ? (
-                        <span className="bg-amber-500/20 text-amber-400 px-2 py-1 rounded font-bold text-xs">
-                          {fmt(p.cantidadSuelta)}
-                        </span>
-                      ) : (
-                        <span className="text-stone-600 text-xs">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right text-primary">{p.ingresosUnidad > 0 ? formatCurrency(p.ingresosUnidad) : <span className="text-stone-600">—</span>}</td>
-                    <td className="px-4 py-3 text-right text-amber-400">{p.ingresosSuelta > 0 ? formatCurrency(p.ingresosSuelta) : <span className="text-stone-600">—</span>}</td>
-                    <td className="px-4 py-3 text-right text-stone-400">{formatCurrency(p.costoTotal)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-emerald-400">{formatCurrency(p.ganancia)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`font-bold ${p.margen >= 30 ? 'text-emerald-400' : p.margen >= 15 ? 'text-amber-400' : 'text-red-400'}`}>
+        <div className="divide-y divide-stone-800">
+          {sortedProducts.length === 0 && (
+            <div className="px-4 py-12 text-center text-textMuted">
+              No se encontraron productos{search ? ` para "${search}"` : ' con ventas'}
+            </div>
+          )}
+          {sortedProducts.map((p, i) => {
+            const actualRank = filteredProducts.indexOf(p) + 1;
+            const esBolsa = p.cantidadUnidad > 0;
+            const esSuelta = p.cantidadSuelta > 0;
+            const vendioAmbos = esBolsa && esSuelta;
+            return (
+              <div key={p._id} className="p-4 hover:bg-stone-800/30 transition-colors">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                  {/* Izquierda: Rank + Nombre + Tipo de venta */}
+                  <div className="flex items-center gap-3 lg:w-72 shrink-0">
+                    <div className={'w-9 h-9 rounded-lg flex items-center justify-center text-sm font-extrabold shrink-0 ' + (actualRank <= 3 ? 'bg-primary/20 text-primary' : 'bg-stone-800 text-textMuted')}>
+                      #{actualRank}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-textLight">{p.nombre}</p>
+                      <p className="text-[10px] text-textMuted">{p.categoria} · {p.sku}</p>
+                    </div>
+                  </div>
+
+                  {/* Centro: Tipo de venta + Cantidad */}
+                  <div className="flex flex-wrap items-center gap-3 lg:flex-1">
+                    {esBolsa && (
+                      <div className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+                        <Box size={14} className="text-blue-400 shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-blue-300/70 uppercase font-bold">Bolsa cerrada</p>
+                          <p className="text-sm font-extrabold text-blue-400">{fmt(p.cantidadUnidad)} vendidas</p>
+                        </div>
+                        {p.ingresosUnidad > 0 && (
+                          <span className="text-[10px] text-blue-300/50 ml-1">{formatCurrency(p.ingresosUnidad)}</span>
+                        )}
+                      </div>
+                    )}
+                    {esSuelta && (
+                      <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                        <Weight size={14} className="text-amber-400 shrink-0" />
+                        <div>
+                          <p className="text-[10px] text-amber-300/70 uppercase font-bold">Por kilo</p>
+                          <p className="text-sm font-extrabold text-amber-400">{fmt(p.cantidadSuelta)} kg</p>
+                        </div>
+                        {p.ingresosSuelta > 0 && (
+                          <span className="text-[10px] text-amber-300/50 ml-1">{formatCurrency(p.ingresosSuelta)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Derecha: Facturó, Costo, Ganancia, Margen */}
+                  <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:gap-4 lg:gap-6 shrink-0">
+                    <div className="text-center min-w-[90px]">
+                      <p className="text-[10px] text-textMuted uppercase font-bold">Facturó</p>
+                      <p className="text-sm font-bold text-textLight">{formatCurrency(p.ingresosGenerados)}</p>
+                    </div>
+                    <div className="text-center min-w-[90px]">
+                      <p className="text-[10px] text-textMuted uppercase font-bold">Costo</p>
+                      <p className="text-sm font-bold text-stone-400">{formatCurrency(p.costoTotal)}</p>
+                    </div>
+                    <div className="text-center min-w-[100px]">
+                      <p className="text-[10px] text-textMuted uppercase font-bold">Ganancia</p>
+                      <p className={'text-base font-extrabold ' + (p.ganancia >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                        {formatCurrency(p.ganancia)}
+                      </p>
+                    </div>
+                    <div className="text-center min-w-[60px]">
+                      <p className="text-[10px] text-textMuted uppercase font-bold">Margen</p>
+                      <span className={'text-sm font-extrabold ' + (p.margen >= 30 ? 'text-emerald-400' : p.margen >= 15 ? 'text-amber-400' : 'text-red-400')}>
                         {p.margen.toFixed(1)}%
                       </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

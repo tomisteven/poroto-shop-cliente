@@ -12,6 +12,7 @@ import toast from 'react-hot-toast';
 
 const FIXED_COSTS_MONTHLY = 1000000;
 const META_FACTURACION_MENSUAL = 4000000;
+const META_FACTURACION_DIARIA = 40000;
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
@@ -289,6 +290,51 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* Barra de Progreso Diaria */}
+      {(() => {
+        const pctDiaria = META_FACTURACION_DIARIA > 0 ? (facturacionHoy / META_FACTURACION_DIARIA) * 100 : 0;
+        const faltaDiaria = Math.max(0, META_FACTURACION_DIARIA - facturacionHoy);
+        const supero = pctDiaria >= 100;
+        return (
+          <div className={'rounded-2xl border p-5 transition-all duration-300 ' + (supero ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-surface border-stone-800/80')}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={'w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ' + (supero ? 'from-emerald-500 to-emerald-700' : 'from-primary to-primaryDark')}>
+                  <Target size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-textLight uppercase tracking-wider">Meta Diaria</p>
+                  <p className="text-[10px] text-textMuted">{formatCurrency(META_FACTURACION_DIARIA)} objetivo de facturación</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-extrabold text-textLight">{formatCurrency(facturacionHoy)}</p>
+                <p className={'text-xs font-bold ' + (supero ? 'text-emerald-400' : faltaDiaria > 0 ? 'text-amber-400' : 'text-textMuted')}>
+                  {supero ? '¡Superaste la meta!' : 'Falta ' + formatCurrency(faltaDiaria)}
+                </p>
+              </div>
+            </div>
+            <div className="h-4 bg-stone-800 rounded-full overflow-hidden">
+              <div
+                className={'h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2 ' + (supero ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : pctDiaria >= 70 ? 'bg-gradient-to-r from-amber-500 to-amber-400' : 'bg-gradient-to-r from-red-500 to-orange-400')}
+                style={{ width: Math.min(pctDiaria, 100) + '%' }}
+              >
+                {pctDiaria >= 15 && (
+                  <span className="text-[10px] font-extrabold text-white drop-shadow-md">{pctDiaria.toFixed(0)}%</span>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-[10px] text-textMuted">$0</span>
+              <span className={'text-xs font-extrabold ' + (supero ? 'text-emerald-400' : 'text-primary')}>
+                {pctDiaria.toFixed(0)}%
+              </span>
+              <span className="text-[10px] text-textMuted">{formatCurrency(META_FACTURACION_DIARIA)}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Row 1: Today's stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

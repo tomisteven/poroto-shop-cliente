@@ -132,14 +132,14 @@ const Sales = () => {
              type="date" 
              value={startDate}
              onChange={e => setStartDate(e.target.value)}
-             className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
+             className="flex-1 min-w-[140px] md:flex-none bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
            />
            <span className="text-textMuted flex items-center">-</span>
            <input 
              type="date" 
              value={endDate}
              onChange={e => setEndDate(e.target.value)}
-             className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
+             className="flex-1 min-w-[140px] md:flex-none bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
            />
            <button 
              onClick={exportToCSV}
@@ -153,7 +153,7 @@ const Sales = () => {
       </div>
 
       <div className="flex-1 bg-surface border border-stone-800 rounded-xl overflow-hidden flex flex-col">
-        <div className="overflow-x-auto flex-1 custom-scrollbar">
+        <div className="hidden md:block overflow-x-auto flex-1 custom-scrollbar">
           <table className="w-full text-left text-sm text-textLight">
             <thead className="text-xs text-textMuted uppercase bg-stone-900 border-b border-stone-800 sticky top-0">
               <tr>
@@ -218,12 +218,69 @@ const Sales = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile - Tarjetas de Venta */}
+        <div className="md:hidden flex-1 overflow-y-auto custom-scrollbar divide-y divide-stone-800">
+          {loading ? (
+            <div className="flex justify-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+          ) : sales.length === 0 ? (
+            <div className="px-4 py-12 text-center text-textMuted">No se encontraron ventas en este período.</div>
+          ) : (
+            sales.map((sale) => (
+              <div key={sale._id} className="p-4 hover:bg-stone-800/30 transition-colors cursor-pointer" onClick={(e) => { if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) setSelectedSale(sale); }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono font-bold text-primary">{sale.numeroTicket}</p>
+                    <p className="text-xs text-textMuted mt-0.5">
+                      {new Date(sale.fecha).toLocaleDateString()} · {new Date(sale.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-[10px] font-bold shrink-0 ${sale.estado === 'completada' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-danger/20 text-danger'}`}>
+                    {sale.estado.toUpperCase()}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-textMuted">Empleado: <span className="text-textLight font-medium">{sale.empleado?.nombre || 'Desconocido'}</span></p>
+                    <p className="text-xs text-textMuted mt-0.5 truncate">
+                      {sale.cliente ? (
+                        <span className="flex items-center gap-1 text-textLight font-medium">
+                          <User size={12} className="text-primary shrink-0" /> {sale.cliente.nombre}
+                          {sale.puntosGanados > 0 && <span className="text-[10px] font-bold text-amber-400">+{sale.puntosGanados} pts</span>}
+                        </span>
+                      ) : 'Cliente: sin asignar'}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[10px] uppercase font-bold text-textMuted">{sale.metodoPago}</p>
+                    <p className="text-base font-extrabold text-textLight">{formatCurrency(sale.totalFinal)}</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center gap-2">
+                  {sale.estado === 'completada' && (
+                    <button onClick={(e) => { e.stopPropagation(); setCustomerModal(sale); }} className="flex-1 py-2 rounded-lg bg-stone-800 text-primary hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold" title={sale.cliente ? 'Cambiar cliente' : 'Asignar cliente'}>
+                      <UserPlus size={14} /> Cliente
+                    </button>
+                  )}
+                  <button onClick={(e) => { e.stopPropagation(); handlePrint(sale); }} className="flex-1 py-2 rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold">
+                    <Printer size={14} /> Imprimir
+                  </button>
+                  {(user?.rol === 'admin' && sale.estado === 'completada') && (
+                    <button onClick={(e) => { e.stopPropagation(); handleAnular(sale._id); }} className="py-2 px-4 rounded-lg bg-danger/10 text-danger hover:bg-danger/20 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold">
+                      <Ban size={14} /> Anular
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Modal Asignar Cliente a Venta */}
       {customerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setCustomerModal(null)}>
-          <div className="bg-surface rounded-2xl border border-stone-800 w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/60 backdrop-blur-sm" onClick={() => setCustomerModal(null)}>
+          <div className="bg-surface rounded-t-2xl md:rounded-2xl border border-stone-800 w-full max-w-md max-h-[85vh] flex flex-col overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-stone-800 flex items-center justify-between shrink-0">
               <h3 className="text-lg font-bold text-textLight flex items-center gap-2">
                 <User size={18} className="text-primary" /> Cliente — {customerModal.numeroTicket}
@@ -275,13 +332,13 @@ const Sales = () => {
 
       {/* Modal Ticket Details & Print */}
       {selectedSale && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:bg-white print:p-0 print:block">
-            <div className="bg-white text-black w-full max-w-sm rounded-xl overflow-hidden shadow-2xl flex flex-col print:shadow-none print:w-[80mm] print:m-0 print:border-none">
+         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-0 md:p-4 print:bg-white print:p-0 print:block">
+            <div className="bg-white text-black w-full max-w-sm rounded-t-2xl md:rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[92dvh] md:max-h-none print:shadow-none print:w-[80mm] print:m-0 print:border-none">
                <button onClick={() => setSelectedSale(null)} className="absolute top-4 right-4 text-white hover:text-gray-300 no-print">
                   <X size={32} />
                </button>
                
-               <div className="p-6 bg-white shrink-0 print:p-0 print:w-[80mm] print:text-[12px] font-mono">
+               <div className="p-6 bg-white overflow-y-auto flex-1 print:p-0 print:w-[80mm] print:text-[12px] font-mono print:overflow-visible">
                   <div className="text-center mb-4">
                      {selectedSale.estado === 'anulada' && <div className="text-red-600 font-bold border-2 border-red-600 inline-block px-4 py-1 rounded-lg mb-4 text-lg transform -rotate-12">ANULADA</div>}
                      <h2 className="text-xl font-bold uppercase">POROTO PETSHOP</h2>
@@ -341,7 +398,7 @@ const Sales = () => {
                   </div>
                </div>
                
-               <div className="p-4 bg-stone-100 no-print mt-auto">
+               <div className="p-4 bg-stone-100 no-print mt-auto shrink-0">
                   <button onClick={() => window.print()} className="w-full bg-stone-800 text-white font-bold py-3 rounded-lg flex justify-center items-center hover:bg-black transition-colors">
                      <Printer size={18} className="mr-2" /> RE-IMPRIMIR TICKET
                   </button>
