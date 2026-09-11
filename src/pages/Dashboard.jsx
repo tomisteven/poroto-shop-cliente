@@ -276,6 +276,10 @@ const Dashboard = () => {
           <button onClick={handleShareCatalog} className="bg-white/5 hover:bg-white/10 border border-stone-700/50 text-textLight px-4 py-2 rounded-xl transition-all flex items-center text-sm font-medium" title="Compartir catálogo">
             <Share2 size={16} className="opacity-70" />
           </button>
+          <Link to="/analisis-ventas" target="_blank" className="bg-white/5 hover:bg-white/10 border border-stone-700/50 text-textLight px-4 py-2 rounded-xl transition-all flex items-center text-sm font-medium" title="Generar análisis de ventas con IA">
+            <BarChart3 size={16} className="mr-2 text-primary" />
+            Generar análisis de ventas
+          </Link>
           <button
             onClick={handleCashClose}
             disabled={loadingCashClose}

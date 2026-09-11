@@ -3,7 +3,7 @@ import api from '../api/axios';
 import { useDebounce } from '../hooks/useDebounce';
 import { CartContext } from '../context/CartContext';
 import {
-   Search, Plus, Minus, Trash2, Tag, ShoppingCart, XCircle, FileText, Sparkles, User, UserPlus, Award, X, Pencil
+   Search, Plus, Minus, Trash2, Tag, ShoppingCart, XCircle, FileText, Sparkles, User, UserPlus, Award, X, Pencil, PackagePlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -90,7 +90,7 @@ const POS = () => {
    const fetchProducts = async () => {
       setLoading(true);
       try {
-         let url = '/products?';
+         let url = '/products?sort=masVendidos&';
          if (debouncedSearch) url += `search=${debouncedSearch}&`;
          if (activeCategory) url += `category=${activeCategory}`;
 
@@ -100,6 +100,20 @@ const POS = () => {
          console.error(error);
       } finally {
          setLoading(false);
+      }
+   };
+
+   const quickAddStock = async (p) => {
+      try {
+         await api.patch(`/products/${p._id}/stock`, {
+            tipo: 'entrada',
+            cantidad: 1,
+            motivo: 'Desde POS'
+         });
+         toast.success(`+1 stock: ${p.nombre}`);
+         fetchProducts();
+      } catch (error) {
+         toast.error(error.response?.data?.message || 'Error al sumar stock');
       }
    };
 
@@ -243,7 +257,7 @@ const fmtMoneda = formatCurrency;
                            <Minus size={12} />
                         </button>
                         <span className="w-5 md:w-6 text-center text-xs md:text-sm font-bold text-textLight">{item.cantidad}</span>
-                        <button onClick={() => updateQuantity(item.cartItemId, item.cantidad + 1)} disabled={item.cantidad >= item.stockMaximo} className="w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded bg-stone-700 text-white hover:bg-stone-600 disabled:opacity-50">
+                        <button onClick={() => updateQuantity(item.cartItemId, item.cantidad + 1)} disabled={item.stockMaximo > 0 && item.cantidad >= item.stockMaximo} className="w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded bg-stone-700 text-white hover:bg-stone-600 disabled:opacity-50">
                            <Plus size={12} />
                         </button>
                      </div>
@@ -513,16 +527,15 @@ const fmtMoneda = formatCurrency;
                      No se encontraron productos.
                   </div>
                ) : (
-                  products.map((p) => {
+products.map((p) => {
                      const itemInCart = cartItems.find(i => i.producto === p._id);
                      const currentQty = itemInCart ? itemInCart.cantidad : 0;
-                     const available = p.stock - currentQty;
+                     const sinStock = p.stock <= 0;
 
                      return (
                         <div
                            key={p._id}
                            onClick={() => {
-                              if (available <= 0) return toast.error('Stock insuficiente');
                               if (p.esGenerico) {
                                  setActiveCustomProduct({ product: p, type: 'generic' });
                                  setCustomPriceInput('');
@@ -537,10 +550,21 @@ const fmtMoneda = formatCurrency;
                               }
                               addToCart(p);
                            }}
-                           className={`bg-surface p-3 rounded-xl border flex flex-col cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-lg ${available <= 0 ? 'opacity-50 border-danger/50 cursor-not-allowed' : 'border-stone-800 hover:border-primary/50'}`}
+                           className={`relative bg-surface p-3 rounded-xl border flex flex-col cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-lg ${sinStock ? 'border-red-500/40 hover:border-red-400' : 'border-stone-800 hover:border-primary/50'}`}
                         >
-                           <h4 className="font-semibold text-textLight text-sm leading-tight line-clamp-2">{p.nombre}</h4>
-                           <p className="text-[10px] text-primary font-medium mt-1">{p.esBolsaAlimento ? `Bolsa ${p.kilosPorBolsa} kg` : 'Producto'}</p>
+                           {sinStock && (
+                              <button
+                                 onClick={(e) => { e.stopPropagation(); quickAddStock(p); }}
+                                 className="absolute top-2 right-2 w-6 h-6 z-10 flex items-center justify-center rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-white transition-colors"
+                                 title="Sumar stock +1"
+                              >
+                                 <PackagePlus size={13} />
+                              </button>
+                           )}
+                           <h4 className={`font-semibold text-textLight text-sm leading-tight line-clamp-2 ${sinStock ? 'pr-6' : ''}`}>{p.nombre}</h4>
+                           <p className={`text-[10px] font-medium mt-1 ${sinStock ? 'text-red-400' : 'text-primary'}`}>
+                              {p.esBolsaAlimento ? `Bolsa ${p.kilosPorBolsa} kg` : 'Producto'}{sinStock ? ' · Sin stock' : ''}
+                           </p>
                            <div className="flex justify-between items-end mt-auto pt-2">
                               <p className="font-bold text-base text-primary">{formatCurrency(p.precioVenta)}</p>
                               {currentQty > 0 && (
@@ -652,9 +676,14 @@ const fmtMoneda = formatCurrency;
             <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm p-0 md:p-4">
                <div className="bg-surface w-full md:max-w-md rounded-t-2xl md:rounded-2xl border border-stone-700 shadow-2xl flex flex-col p-5 md:p-6 max-h-[90vh] overflow-y-auto custom-scrollbar animate-slide-up md:animate-none">
                   <div className="flex justify-between items-center mb-4">
-                     <h3 className="text-lg md:text-xl font-bold text-textLight">{activeCustomProduct.product.nombre}</h3>
-                     <button onClick={() => setActiveCustomProduct(null)} className="text-textMuted hover:text-textLight"><XCircle size={24} /></button>
-                  </div>
+                      <div>
+                         <h3 className="text-lg md:text-xl font-bold text-textLight">{activeCustomProduct.product.nombre}</h3>
+                         {activeCustomProduct.product.aspectoBolsa && (
+                            <p className="text-[11px] text-amber-400/90 mt-0.5">› {activeCustomProduct.product.aspectoBolsa}</p>
+                         )}
+                      </div>
+                      <button onClick={() => setActiveCustomProduct(null)} className="text-textMuted hover:text-textLight"><XCircle size={24} /></button>
+                   </div>
 
                   {activeCustomProduct.type === 'generic' && (
                      <div className="space-y-4">

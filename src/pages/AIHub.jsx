@@ -12,6 +12,7 @@ const TABS = [
   { key: 'clientes', label: 'Clientes', icon: Users, endpoint: '/ai-features/clientes-inactivos', color: '#10B981' },
   { key: 'tendencias', label: 'Tendencias', icon: TrendingUp, endpoint: '/ai-features/tendencias', color: '#8B5CF6' },
   { key: 'promos', label: 'Promos IA', icon: Sparkles, endpoint: '/ai-features/promociones-ia', color: '#EC4899' },
+  { key: 'ventas', label: 'Ventas', icon: TrendingUp, endpoint: '/ai-features/analisis-ventas', color: '#F97316' },
 ];
 
 export default function AIHub() {
@@ -647,6 +648,89 @@ const renderPromos = (d) => {
     );
   };
 
+  const renderVentas = (d) => {
+    const { resumen, ia } = d;
+    const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
+    return (
+      <div className="space-y-5">
+        {resumen && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-background rounded-xl border border-stone-700 p-4">
+              <p className="text-textMuted text-xs mb-1">Ventas</p>
+              <p className="text-textLight text-2xl font-bold">{(resumen.ventas || 0).toLocaleString('es-AR')}</p>
+            </div>
+            <div className="bg-background rounded-xl border border-stone-700 p-4">
+              <p className="text-textMuted text-xs mb-1">Facturación</p>
+              <p className="text-textLight text-2xl font-bold">{fmt(resumen.facturacion)}</p>
+            </div>
+            <div className="bg-background rounded-xl border border-stone-700 p-4">
+              <p className="text-textMuted text-xs mb-1">Ganancia estimada</p>
+              <p className="text-emerald-400 text-2xl font-bold">{fmt(resumen.ganancia)}</p>
+            </div>
+            <div className="bg-background rounded-xl border border-stone-700 p-4">
+              <p className="text-textMuted text-xs mb-1">Margen</p>
+              <p className="text-textLight text-2xl font-bold">{resumen.margenPct}%</p>
+            </div>
+          </div>
+        )}
+
+        {ia?.resumen && (
+          <div className="bg-surface rounded-xl border border-stone-800 p-5">
+            <h4 className="text-textLight font-medium text-sm mb-2">Análisis de IA</h4>
+            <p className="text-sm text-textLight leading-relaxed whitespace-pre-wrap">{ia.resumen}</p>
+          </div>
+        )}
+
+        {ia?.accionesConcretas?.length > 0 && (
+          <div className="bg-surface rounded-xl border border-stone-800 p-5">
+            <h4 className="text-textLight font-medium text-sm mb-3">Acciones Concretas</h4>
+            <ul className="space-y-1">
+              {ia.accionesConcretas.map((a, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-textLight">
+                  <span className="text-primary mt-0.5">-</span>{a}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {ia?.riesgos?.length > 0 && (
+          <div className="bg-surface rounded-xl border border-stone-800 p-5">
+            <h4 className="text-textLight font-medium text-sm mb-3">Riesgos Detectados</h4>
+            <ul className="space-y-1">
+              {ia.riesgos.map((a, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-textLight">
+                  <span className="text-red-400 mt-0.5">-</span>{a}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {ia?.productosParaInvertir?.length > 0 && (
+          <div className="bg-surface rounded-xl border border-stone-800 p-5">
+            <h4 className="text-textLight font-medium text-sm mb-3">Productos para invertir</h4>
+            <div className="space-y-2">
+              {ia.productosParaInvertir.map((item, i) => (
+                <div key={i} className="flex items-start gap-3 bg-background rounded-lg p-3 border border-stone-700">
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold shrink-0 ${
+                    item.prioridad === 'alta' ? 'bg-red-500/20 text-red-400' :
+                    item.prioridad === 'media' ? 'bg-amber-500/20 text-amber-400' :
+                    'bg-emerald-500/20 text-emerald-400'
+                  }`}>{item.prioridad || '-'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-textLight">{item.nombre}</p>
+                    {item.motivo && <p className="text-xs text-textMuted mt-1">{item.motivo}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderContent = () => {
     if (loading) {
       return (
@@ -689,11 +773,12 @@ const renderPromos = (d) => {
       case 'clientes': return renderClientes(data);
       case 'tendencias': return renderTendencias(data);
       case 'promos': return renderPromos(data);
+      case 'ventas': return renderVentas(data);
       default: return null;
     }
   };
 
-  const historyFilterTabs = ['todos', 'restock', 'precios', 'clientes', 'tendencias', 'promos'];
+  const historyFilterTabs = ['todos', 'restock', 'precios', 'clientes', 'tendencias', 'promos', 'ventas'];
   const [historyFilter, setHistoryFilter] = useState('todos');
 
   const filteredHistory = historyFilter === 'todos'

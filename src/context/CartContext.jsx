@@ -61,7 +61,8 @@ export const CartProvider = ({ children }) => {
     const stockRequeridoAdicional = options.stockDeduction || 1;
     
     if (existItem) {
-      if (product.stock < existItem.stockDeducido + stockRequeridoAdicional) {
+      // Permitir vender igual si el registro dice 0 (hay stock físico)
+      if (product.stock > 0 && product.stock < existItem.stockDeducido + stockRequeridoAdicional) {
          return false; // Sin stock
       }
       setCartItems(
@@ -77,7 +78,8 @@ export const CartProvider = ({ children }) => {
         )
       );
     } else {
-      if (product.stock < stockRequeridoAdicional) return false;
+      // Permitir vender igual si el registro dice 0 (hay stock físico)
+      if (product.stock > 0 && product.stock < stockRequeridoAdicional) return false;
       const precioVenta = options.precioVenta !== undefined ? options.precioVenta : product.precioVenta;
       const subtotal = options.subtotal !== undefined ? options.subtotal : precioVenta;
       

@@ -32,6 +32,7 @@ import Orders from './pages/Orders';
 import Calendario from './pages/Calendario';
 import Afiliados from './pages/Afiliados';
 import AIHub from './pages/AIHub';
+import AnalisisVentas from './pages/AnalisisVentas';
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/catalogo" element={<Catalogo />} />
+            <Route path="/analisis-ventas" element={<ProtectedRoute><AnalisisVentas /></ProtectedRoute>} />
 
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/dashboard" replace />} />

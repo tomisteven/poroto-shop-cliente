@@ -4,6 +4,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { AuthContext } from '../context/AuthContext';
 import { PlusCircle, Search, Edit2, Trash2, X, PackagePlus, Plus, Minus, Download, CheckSquare, Square, ChevronDown, Sparkles, Loader, Puzzle, Trash } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { exportProductsToExcel } from '../utils/exportProductsExcel';
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
@@ -43,7 +44,7 @@ const Products = () => {
     nombre: '', descripcion: '', sku: '', categoria: '', precioCompra: 0, precioVenta: 0, 
     stock: 0, stockMinimo: 5, unidadMedida: 'unidad', proveedor: '', imagen: '',
     esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: 42,
-    notasIA: ''
+    notasIA: '', aspectoBolsa: ''
   });
 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
@@ -156,7 +157,7 @@ const Products = () => {
       precioCompra: 0, precioVenta: 0, stock: 0, stockMinimo: 5, 
       unidadMedida: 'unidad', proveedor: '', imagen: '',
       esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: 42,
-      notasIA: ''
+      notasIA: '', aspectoBolsa: ''
     });
     setIsModalOpen(true);
   };
@@ -170,7 +171,7 @@ const Products = () => {
       unidadMedida: p.unidadMedida, proveedor: p.proveedor || '', imagen: p.imagen || '',
       esGenerico: p.esGenerico || false, esBolsaAlimento: p.esBolsaAlimento || false, 
       kilosPorBolsa: p.kilosPorBolsa || '', precioKilo: p.precioKilo || '', margenSuelto: p.margenSuelto || 42,
-      notasIA: p.notasIA || ''
+      notasIA: p.notasIA || '', aspectoBolsa: p.aspectoBolsa || ''
     });
     setIsModalOpen(true);
   };
@@ -259,33 +260,18 @@ const Products = () => {
     }
   };
 
-  const exportToCSV = () => {
-     if (!products || products.length === 0) return toast.error('No hay productos para exportar');
-     
-     let csvContent = "data:text/csv;charset=utf-8,";
-     csvContent += "Producto,SKU,Categoria,Stock,Unidad,Stock Minimo,Costo,Precio Venta,Margen (%)\n";
-     
-     products.forEach(p => {
-        const nombre = `"${(p.nombre || '').replace(/"/g, '""')}"`;
-        const sku = `"${(p.sku || '').replace(/"/g, '""')}"`;
-        const categoria = `"${(p.categoria?.nombre || '').replace(/"/g, '""')}"`;
-        const stock = p.stock || 0;
-        const unidad = p.unidadMedida || '';
-        const min = p.stockMinimo || 0;
-        const costo = p.precioCompra || 0;
-        const venta = p.precioVenta || 0;
-        const margen = calculateMargin(costo, venta);
+  const [exporting, setExporting] = useState(false);
 
-        csvContent += `${nombre},${sku},${categoria},${stock},${unidad},${min},${costo},${venta},${margen}\n`;
-     });
-
-     const encodedUri = encodeURI(csvContent);
-     const link = document.createElement("a");
-     link.setAttribute("href", encodedUri);
-     link.setAttribute("download", `inventario_completo.csv`);
-     document.body.appendChild(link);
-     link.click();
-     document.body.removeChild(link);
+  const exportToExcel = async (conPrecio = false) => {
+    setExporting(true);
+    try {
+      const res = await exportProductsToExcel({ conPrecio });
+      toast.success(`${res.conPrecio ? 'Excel con precios' : 'Excel completo'}: ${res.total} productos en ${res.grupos.length} categorías`);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || 'Error al exportar Excel');
+    } finally {
+      setExporting(false);
+    }
   };
 
   // ── Selección masiva ──────────────────────────────────────────
@@ -450,12 +436,22 @@ const Products = () => {
         </div>
 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <button 
-              onClick={exportToCSV}
-              className="bg-stone-800 hover:bg-stone-700 text-textLight px-3 md:px-4 py-2 rounded-lg transition-colors flex items-center border border-stone-700 shadow-sm whitespace-nowrap"
-              title="Exportar inventario a Excel/CSV"
+              onClick={() => exportToExcel(false)}
+              disabled={exporting}
+              className="bg-stone-800 hover:bg-stone-700 text-textLight px-3 md:px-4 py-2 rounded-lg transition-colors flex items-center border border-stone-700 shadow-sm whitespace-nowrap disabled:opacity-50"
+              title="Exportar todos los productos a Excel (una hoja por categoría)"
             >
               <Download size={18} className="mr-1 md:mr-2 text-emerald-400" />
-              <span className="hidden sm:inline">Exportar</span>
+              <span className="hidden sm:inline">{exporting ? 'Generando...' : 'Excel completo'}</span>
+            </button>
+            <button 
+              onClick={() => exportToExcel(true)}
+              disabled={exporting}
+              className="bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 px-3 md:px-4 py-2 rounded-lg transition-colors flex items-center border border-emerald-600/30 shadow-sm whitespace-nowrap disabled:opacity-50"
+              title="Exportar solo productos con precio (sin los que no tienen ni compra ni venta)"
+            >
+              <Download size={18} className="mr-1 md:mr-2" />
+              <span className="hidden sm:inline">{exporting ? 'Generando...' : 'Solo con precios'}</span>
             </button>
             <button
               onClick={() => setFilterOnlyCombos(!filterOnlyCombos)}
@@ -777,6 +773,12 @@ const Products = () => {
                           <input type="checkbox" name="esBolsaAlimento" checked={formData.esBolsaAlimento} onChange={handleInputChange} className="w-4 h-4 text-primary bg-stone-800 border-stone-600 rounded focus:ring-primary" />
                           <span className="text-sm text-textMuted">Es bolsa de alimento fraccionable (Se puede vender suelto)</span>
                        </label>
+                    </div>
+
+                    <div>
+                       <label className="block text-xs font-medium text-textMuted mb-1">Aspecto / Referencia del envase (para identificación en el punto de venta)</label>
+                       <input type="text" name="aspectoBolsa" value={formData.aspectoBolsa} onChange={handleInputChange} placeholder="Ej: Bolsa ROJA con perro Golden, lata azul, sobre NARANJA..." className="w-full bg-background border border-stone-700 rounded-lg px-3 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none text-sm" />
+                       <p className="text-[10px] text-textMuted mt-1">Se muestra en el POS al seleccionar el producto para reconocer qué envase vendiste.</p>
                     </div>
 
                     {formData.esBolsaAlimento && (
