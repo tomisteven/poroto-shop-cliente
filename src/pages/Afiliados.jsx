@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 import {
@@ -38,7 +38,9 @@ const Afiliados = () => {
   const [products, setProducts] = useState([]);
 
   const [search, setSearch] = useState('');
+  const [soloListos, setSoloListos] = useState(false);
   const [detalle, setDetalle] = useState(null);
+  const notifiedReady = useRef(false);
   const [detalleLoading, setDetalleLoading] = useState(false);
 
   const [rewardModal, setRewardModal] = useState(false);
@@ -69,6 +71,16 @@ const Afiliados = () => {
       setConfig(cfg.data);
       setConfigInput(cfg.data.pesosPorPunto);
       setProducts(prod.data);
+
+      const active = rew.data.filter(r => r.activo);
+      const min = active.length ? Math.min(...active.map(r => r.puntosRequeridos)) : Infinity;
+      const listos = cus.data.filter(c => c.esAfiliado && c.puntos >= min);
+      if (!notifiedReady.current && listos.length > 0) {
+        notifiedReady.current = true;
+        const sample = listos.slice(0, 3).map(c => c.nombre).join(', ');
+        const extra = listos.length > 3 ? ` y ${listos.length - 3} más` : '';
+        toast(`💛 ${listos.length} cliente${listos.length > 1 ? 's' : ''} listo${listos.length > 1 ? 's' : ''} para canjear recompensas: ${sample}${extra}`, { duration: 5000 });
+      }
     } catch {
       toast.error('Error al cargar datos');
     } finally {
@@ -192,11 +204,21 @@ const Afiliados = () => {
     }
   };
 
-  const filteredCustomers = customers.filter(c => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return c.nombre?.toLowerCase().includes(s) || c.telefono?.includes(s);
-  });
+  const activeRewards = rewards.filter(r => r.activo);
+  const minPuntos = activeRewards.length > 0 ? Math.min(...activeRewards.map(r => r.puntosRequeridos)) : Infinity;
+  const canRedeem = (c) => c.esAfiliado && c.puntos >= minPuntos;
+
+  const searchFiltered = customers
+    .filter(c => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return c.nombre?.toLowerCase().includes(s) || c.telefono?.includes(s);
+    })
+    .sort((a, b) => (b.puntos || 0) - (a.puntos || 0) || a.nombre.localeCompare(b.nombre));
+
+  const listos = searchFiltered.filter(canRedeem);
+  const filteredCustomers = soloListos ? listos : searchFiltered;
+  const listosTotales = customers.filter(canRedeem).length;
 
   const rewardValor = (r) => {
     if (r.tipo === 'efectivo') return formatCurrency(r.valor || 0);
@@ -230,6 +252,44 @@ const Afiliados = () => {
         </div>
       </div>
 
+      {/* Banner: clientes que ya alcanzaron el mínimo de puntos para alguna recompensa */}
+      {minPuntos !== Infinity && listosTotales > 0 && (
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4 bg-amber-500/10 border border-amber-500/30 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+              <Gift className="text-amber-400" size={22} />
+            </div>
+            <div>
+              <p className="font-bold text-textLight">
+                {listosTotales} cliente{listosTotales > 1 ? 's' : ''} listo{listosTotales > 1 ? 's' : ''} para canjear
+              </p>
+              <p className="text-xs text-textMuted">
+                Ya alcanzaron el mínimo de {minPuntos} puntos en alguna recompensa activa
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 items-center lg:ml-auto">
+            {customers.filter(canRedeem).slice(0, 5).map(c => (
+              <button
+                key={c._id}
+                onClick={() => { setTab('customers'); setSoloListos(true); setSearch(c.nombre); }}
+                className="text-xs font-medium text-amber-400 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded-full px-2.5 py-1 transition-colors"
+                title="Ver este cliente"
+              >
+                {c.nombre} · {c.puntos} pts
+              </button>
+            ))}
+            {listosTotales > 5 && <span className="text-xs text-textMuted">+{listosTotales - 5} más</span>}
+            <button
+              onClick={() => { setTab('customers'); setSoloListos(true); }}
+              className="text-xs font-bold text-amber-400 hover:text-amber-300 underline underline-offset-2 px-1 transition-colors"
+            >
+              Ver todos
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 border-b border-stone-800 pb-0">
         {TABS.map(t => {
           const Icon = t.icon;
@@ -249,14 +309,22 @@ const Afiliados = () => {
       {tab !== 'config' && (
         <div className="flex items-center justify-between gap-4">
           <p className="text-textMuted text-sm">
-            {tab === 'customers' && `${customers.filter(c => c.esAfiliado).length} afiliados · ${customers.length} clientes`}
+            {tab === 'customers' && `${customers.filter(c => c.esAfiliado).length} afiliados · ${customers.length} clientes${listosTotales > 0 ? ` · ${listosTotales} listo${listosTotales > 1 ? 's' : ''} para canjear` : ''}`}
             {tab === 'rewards' && `${rewards.filter(r => r.activo).length} recompensas activas`}
             {tab === 'redemptions' && `${redemptions.length} canjes registrados`}
           </p>
-          <div className="relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
-            <input type="text" placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)}
-              className="bg-background border border-stone-700 rounded-lg pl-9 pr-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary w-64" />
+          <div className="flex items-center gap-2">
+            {tab === 'customers' && listosTotales > 0 && (
+              <button onClick={() => { setSoloListos(s => !s); setSearch(''); }}
+                className={`text-xs font-bold px-3 py-2 rounded-lg border transition-colors flex items-center gap-1.5 ${soloListos ? 'bg-amber-500/15 text-amber-400 border-amber-500/40' : 'text-textMuted border-stone-700 hover:text-textLight hover:border-stone-600'}`}>
+                <Star size={14} /> {soloListos ? 'Mostrando listos' : 'Solo listos'}
+              </button>
+            )}
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
+              <input type="text" placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)}
+                className="bg-background border border-stone-700 rounded-lg pl-9 pr-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary w-64" />
+            </div>
           </div>
         </div>
       )}
@@ -273,15 +341,15 @@ const Afiliados = () => {
                 <th className="px-4 py-3 text-right">Gasto del mes</th>
                 <th className="px-4 py-3 text-right">Total gastado</th>
                 <th className="px-4 py-3 text-right">Compras</th>
-                <th className="px-4 py-3 text-center w-24">Acciones</th>
+                <th className="px-4 py-3 text-center w-40">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-800">
               {filteredCustomers.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-textMuted">No hay clientes registrados</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-textMuted">{soloListos ? 'No hay clientes listos para canjear' : 'No hay clientes registrados'}</td></tr>
               )}
               {filteredCustomers.map(c => (
-                <tr key={c._id} className="hover:bg-stone-800/40 transition-colors cursor-pointer" onClick={() => openDetalle(c)}>
+                <tr key={c._id} className={`${canRedeem(c) ? 'bg-amber-500/5' : ''} hover:bg-stone-800/40 transition-colors cursor-pointer`} onClick={() => openDetalle(c)}>
                   <td className="px-4 py-3">
                     <div className="font-medium">{c.nombre}</div>
                     <div className="text-xs text-textMuted">{c.telefono || '—'}</div>
@@ -293,16 +361,31 @@ const Afiliados = () => {
                       <span className="text-xs text-textMuted">No</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right font-bold text-amber-400">{c.puntos}</td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <span className={`font-bold ${canRedeem(c) ? 'text-amber-400' : 'text-textLight'}`}>{c.puntos}</span>
+                      {canRedeem(c) && (
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap">
+                          <Gift size={10} /> Listo para canjear
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-right">{formatCurrency(c.gastoMes)}</td>
                   <td className="px-4 py-3 text-right">{formatCurrency(c.totalGastado)}</td>
                   <td className="px-4 py-3 text-right text-textMuted">{c.ventas}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-1" onClick={e => e.stopPropagation()}>
-                      {!c.esAfiliado && (
-                        <button onClick={() => handleAfiliar(c._id)} className="p-1.5 text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors" title="Afiliar">
-                          <Award size={15} />
+                      {canRedeem(c) ? (
+                        <button onClick={() => openRedeem(c)} className="text-xs font-bold text-emerald-400 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5 transition-colors whitespace-nowrap">
+                          <Gift size={14} /> Canjear
                         </button>
+                      ) : (
+                        !c.esAfiliado && (
+                          <button onClick={() => handleAfiliar(c._id)} className="p-1.5 text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors" title="Afiliar">
+                            <Award size={15} />
+                          </button>
+                        )
                       )}
                       <button onClick={() => openDetalle(c)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors" title="Ver detalle">
                         <Search size={15} />

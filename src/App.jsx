@@ -33,6 +33,8 @@ import Calendario from './pages/Calendario';
 import Afiliados from './pages/Afiliados';
 import AIHub from './pages/AIHub';
 import AnalisisVentas from './pages/AnalisisVentas';
+import AnalizarProductos from './pages/AnalizarProductos';
+import Configuracion from './pages/Configuracion';
 
 function App() {
   return (
@@ -79,10 +81,16 @@ function App() {
               <Route path="calendario" element={<Calendario />} />
               <Route path="afiliados" element={<Afiliados />} />
               <Route path="ai-hub" element={<AIHub />} />
+              <Route path="analisis-productos" element={<AnalizarProductos />} />
               
               <Route path="users" element={
                 <ProtectedRoute requireAdmin={true}>
                   <Users />
+                </ProtectedRoute>
+              } />
+              <Route path="configuracion" element={
+                <ProtectedRoute requireAdmin={true}>
+                  <Configuracion />
                 </ProtectedRoute>
               } />
             </Route>

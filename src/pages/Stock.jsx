@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
+import { useDebounce } from '../hooks/useDebounce';
 import { ArrowRightLeft, ArrowDownToLine, ArrowUpFromLine, RefreshCcw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -9,6 +10,58 @@ const formatStock = (val) => {
   return Number.isInteger(val) ? val.toString() : Number(val).toFixed(2);
 };
 
+const getTipoIcon = (tipo) => {
+  switch(tipo) {
+     case 'entrada': return <div className="p-1.5 rounded-md bg-emerald-500/20 text-emerald-500"><ArrowDownToLine size={16} /></div>;
+     case 'salida': return <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-500"><ArrowUpFromLine size={16} /></div>;
+     case 'ajuste': return <div className="p-1.5 rounded-md bg-beige/20 text-beige"><RefreshCcw size={16} /></div>;
+     case 'venta': return <div className="p-1.5 rounded-md bg-primary/20 text-primary"><ArrowRightLeft size={16} /></div>;
+     default: return null;
+  }
+};
+
+const StockRow = React.memo(function StockRow({ m }) {
+  return (
+    <tr className="hover:bg-stone-800/50 transition-colors">
+      <td className="px-6 py-4 whitespace-nowrap">
+         <div>{new Date(m.fecha).toLocaleDateString()}</div>
+         <div className="text-xs text-textMuted">{new Date(m.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+      </td>
+      <td className="px-6 py-4">
+         <div className="flex items-center">
+            {getTipoIcon(m.tipo)}
+            <span className="ml-2 font-medium capitalize text-sm">{m.tipo}</span>
+         </div>
+      </td>
+      <td className="px-6 py-4">
+         <div className="font-medium text-primary">{m.producto?.nombre}</div>
+         <div className="text-xs text-textMuted font-mono mt-0.5">{m.producto?.sku}</div>
+      </td>
+      <td className="px-4 py-4 text-center">
+           <span className={`font-bold ${m.tipo === 'entrada' || (m.tipo === 'ajuste' && m.stockNuevo > m.stockAnterior) ? 'text-emerald-400' : 'text-danger'}`}>
+              {m.tipo === 'entrada' || (m.tipo === 'ajuste' && m.stockNuevo > m.stockAnterior) ? '+' : '-'}{formatStock(m.cantidad)}
+           </span>
+       </td>
+       <td className="px-4 py-4 text-center">
+          <div className="flex items-center justify-center gap-1.5 font-mono text-xs">
+             <span className="text-textMuted line-through opacity-50">{formatStock(m.stockAnterior)}</span>
+             <span className="text-white/20">→</span>
+             <span className="font-bold text-textLight">{formatStock(m.stockNuevo)}</span>
+          </div>
+       </td>
+      <td className="px-6 py-4 text-textMuted text-xs max-w-xs truncate">{m.motivo || '-'}</td>
+      <td className="px-6 py-4 border-l border-stone-800 text-xs">
+         <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-stone-700 flex items-center justify-center text-[10px] font-bold">
+               {m.usuario?.nombre?.charAt(0).toUpperCase()}
+            </div>
+            <span className="truncate max-w-[100px]">{m.usuario?.nombre}</span>
+         </div>
+      </td>
+    </tr>
+  );
+});
+
 const Stock = () => {
   const [movements, setMovements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,37 +70,30 @@ const Stock = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [tipo, setTipo] = useState('');
+  const debouncedStartDate = useDebounce(startDate, 400);
+  const debouncedEndDate = useDebounce(endDate, 400);
+  const debouncedTipo = useDebounce(tipo, 300);
 
-  useEffect(() => {
-    fetchMovements();
-  }, [startDate, endDate, tipo]);
-
-  const fetchMovements = async () => {
+  const fetchMovements = useCallback(async () => {
     setLoading(true);
     try {
       let url = '/stock-movements?';
-      if (startDate) url += `startDate=${startDate}&`;
-      if (endDate) url += `endDate=${endDate}&`;
-      if (tipo) url += `tipo=${tipo}`;
+      if (debouncedStartDate) url += `startDate=${debouncedStartDate}&`;
+      if (debouncedEndDate) url += `endDate=${debouncedEndDate}&`;
+      if (debouncedTipo) url += `tipo=${debouncedTipo}`;
       
       const res = await api.get(url);
       setMovements(res.data);
-    } catch (error) {
+    } catch {
       toast.error('Error al obtener movimientos');
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedStartDate, debouncedEndDate, debouncedTipo]);
 
-  const getTipoIcon = (tipo) => {
-    switch(tipo) {
-       case 'entrada': return <div className="p-1.5 rounded-md bg-emerald-500/20 text-emerald-500"><ArrowDownToLine size={16} /></div>;
-       case 'salida': return <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-500"><ArrowUpFromLine size={16} /></div>;
-       case 'ajuste': return <div className="p-1.5 rounded-md bg-beige/20 text-beige"><RefreshCcw size={16} /></div>;
-       case 'venta': return <div className="p-1.5 rounded-md bg-primary/20 text-primary"><ArrowRightLeft size={16} /></div>;
-       default: return null;
-    }
-  };
+  useEffect(() => {
+    fetchMovements();
+  }, [fetchMovements]);
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -105,43 +151,7 @@ const Stock = () => {
                 <tr><td colSpan="7" className="text-center py-10 text-textMuted">No se encontraron movimientos registrados.</td></tr>
               ) : (
                 movements.map((m) => (
-                  <tr key={m._id} className="hover:bg-stone-800/50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                       <div>{new Date(m.fecha).toLocaleDateString()}</div>
-                       <div className="text-xs text-textMuted">{new Date(m.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                       <div className="flex items-center">
-                          {getTipoIcon(m.tipo)}
-                          <span className="ml-2 font-medium capitalize text-sm">{m.tipo}</span>
-                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                       <div className="font-medium text-primary">{m.producto?.nombre}</div>
-                       <div className="text-xs text-textMuted font-mono mt-0.5">{m.producto?.sku}</div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                         <span className={`font-bold ${m.tipo === 'entrada' || (m.tipo === 'ajuste' && m.stockNuevo > m.stockAnterior) ? 'text-emerald-400' : 'text-danger'}`}>
-                            {m.tipo === 'entrada' || (m.tipo === 'ajuste' && m.stockNuevo > m.stockAnterior) ? '+' : '-'}{formatStock(m.cantidad)}
-                         </span>
-                     </td>
-                     <td className="px-4 py-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5 font-mono text-xs">
-                           <span className="text-textMuted line-through opacity-50">{formatStock(m.stockAnterior)}</span>
-                           <span className="text-white/20">→</span>
-                           <span className="font-bold text-textLight">{formatStock(m.stockNuevo)}</span>
-                        </div>
-                     </td>
-                    <td className="px-6 py-4 text-textMuted text-xs max-w-xs truncate">{m.motivo || '-'}</td>
-                    <td className="px-6 py-4 border-l border-stone-800 text-xs">
-                       <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-stone-700 flex items-center justify-center text-[10px] font-bold">
-                             {m.usuario?.nombre?.charAt(0).toUpperCase()}
-                          </div>
-                          <span className="truncate max-w-[100px]">{m.usuario?.nombre}</span>
-                       </div>
-                    </td>
-                  </tr>
+                  <StockRow key={m._id} m={m} />
                 ))
               )}
             </tbody>

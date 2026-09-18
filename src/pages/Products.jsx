@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import api from '../api/axios';
 import { useDebounce } from '../hooks/useDebounce';
 import { AuthContext } from '../context/AuthContext';
@@ -6,12 +6,125 @@ import { PlusCircle, Search, Edit2, Trash2, X, PackagePlus, Plus, Minus, Downloa
 import toast from 'react-hot-toast';
 import { exportProductsToExcel } from '../utils/exportProductsExcel';
 
-const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
+const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+const formatCurrency = (val) => arsFormat.format(val);
 
 const formatStock = (val) => {
   if (val === undefined || val === null) return '0';
   return Number.isInteger(val) ? val.toString() : Number(val).toFixed(2);
 };
+
+const calculateMargin = (compra, venta) => {
+  if (!compra || compra === 0) return 0;
+  return (((venta - compra) / compra) * 100).toFixed(2);
+};
+
+const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete }) {
+  return (
+    <tr className={`hover:bg-stone-800/50 transition-colors ${isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}>
+      <td className="px-4 py-4">
+        <button onClick={() => onToggleSelect(p._id)} className="text-textMuted hover:text-primary transition-colors">
+          {isSelected ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} />}
+        </button>
+      </td>
+      <td className="px-4 py-4 font-medium flex items-center">
+        {p.imagen && (
+          <img src={p.imagen} alt={p.nombre} className="w-8 h-8 rounded shrink-0 mr-3 object-cover" />
+        )}
+        <span className="text-textLight">{p.nombre}</span>
+      </td>
+      <td className="px-4 py-4 text-textMuted font-mono text-xs">{p.sku}</td>
+      <td className="px-4 py-4">{p.categoria?.nombre || '-'}</td>
+      <td className="px-4 py-4">
+        <div className="flex items-center gap-2">
+          <button onClick={() => onQuickAdjust(p, -1)} disabled={p.stock <= 0} className="w-6 h-6 flex items-center justify-center rounded bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors disabled:opacity-50"><Minus size={12} /></button>
+          <span className={`px-2 py-1 rounded text-xs font-bold ${p.stock > p.stockMinimo ? 'bg-emerald-500/20 text-emerald-500' : p.stock > 0 ? 'bg-warning/20 text-warning' : 'bg-danger/20 text-danger'}`}>
+            {formatStock(p.stock)} {p.unidadMedida === 'unidad' ? 'u.' : p.unidadMedida}
+          </span>
+          <button onClick={() => onQuickAdjust(p, 1)} className="w-6 h-6 flex items-center justify-center rounded bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors"><Plus size={12} /></button>
+        </div>
+      </td>
+      <td className="px-4 py-4 text-right">{formatCurrency(p.precioCompra)}</td>
+      <td className="px-4 py-4 text-right">{formatCurrency(p.precioVenta)}</td>
+      <td className="px-4 py-4 text-right">
+        {p.precioKilo != null && p.precioKilo > 0 ? (
+          <span className="text-xs font-bold text-primary">{formatCurrency(p.precioKilo)}/kg</span>
+        ) : (
+          <span className="text-xs text-textMuted">No especifica</span>
+        )}
+      </td>
+      <td className="px-4 py-4 text-right">
+        <span className={`text-xs ml-2 ${calculateMargin(p.precioCompra, p.precioVenta) > 30 ? 'text-emerald-400' : 'text-amber-400'}`}>
+          {calculateMargin(p.precioCompra, p.precioVenta)}%
+        </span>
+      </td>
+      <td className="px-4 py-4">
+        <div className="flex items-center justify-center space-x-3">
+          <button onClick={() => onOpenStock(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={16} /></button>
+          <button onClick={() => onOpenEdit(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={16} /></button>
+          {isAdmin && (
+            <button onClick={() => onDelete(p._id)} className="text-danger hover:text-red-400" title="Eliminar"><Trash2 size={16} /></button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+const ProductCardRow = React.memo(function ProductCardRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete }) {
+  return (
+    <div className={`p-4 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}>
+      <div className="flex items-start gap-3">
+        <button onClick={() => onToggleSelect(p._id)} className="text-textMuted hover:text-primary shrink-0 mt-0.5">
+          {isSelected ? <CheckSquare size={18} className="text-primary" /> : <Square size={18} />}
+        </button>
+        {p.imagen && <img src={p.imagen} alt={p.nombre} className="w-10 h-10 rounded-lg object-cover shrink-0" />}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-medium text-textLight text-sm">{p.nombre}</p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => onOpenStock(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={17} /></button>
+              <button onClick={() => onOpenEdit(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={17} /></button>
+              {isAdmin && (
+                <button onClick={() => onDelete(p._id)} className="text-danger hover:text-red-400" title="Eliminar"><Trash2 size={17} /></button>
+              )}
+            </div>
+          </div>
+          <p className="text-[11px] text-textMuted font-mono mt-0.5 truncate">{p.sku} · {p.categoria?.nombre || '-'}</p>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.stock > p.stockMinimo ? 'bg-emerald-500/20 text-emerald-500' : p.stock > 0 ? 'bg-warning/20 text-warning' : 'bg-danger/20 text-danger'}`}>
+              {formatStock(p.stock)} {p.unidadMedida === 'unidad' ? 'u.' : p.unidadMedida}
+            </span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${calculateMargin(p.precioCompra, p.precioVenta) > 30 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+              Margen {calculateMargin(p.precioCompra, p.precioVenta)}%
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button onClick={() => onQuickAdjust(p, -1)} disabled={p.stock <= 0} className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors disabled:opacity-50"><Minus size={15} /></button>
+        <div className="flex-1 text-center">
+          <span className="text-sm font-bold text-textLight">{formatStock(p.stock)} {p.unidadMedida === 'unidad' ? 'unidades' : p.unidadMedida}</span>
+        </div>
+        <button onClick={() => onQuickAdjust(p, 1)} className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors"><Plus size={15} /></button>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
+          <p className="text-[9px] uppercase font-bold text-textMuted">Compra</p>
+          <p className="text-xs font-bold text-textLight">{formatCurrency(p.precioCompra)}</p>
+        </div>
+        <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
+          <p className="text-[9px] uppercase font-bold text-textMuted">Venta</p>
+          <p className="text-xs font-bold text-textLight">{formatCurrency(p.precioVenta)}</p>
+        </div>
+        <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
+          <p className="text-[9px] uppercase font-bold text-textMuted">P. Kilo</p>
+          <p className="text-xs font-bold text-primary">{p.precioKilo != null && p.precioKilo > 0 ? formatCurrency(p.precioKilo) : '—'}</p>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 const Products = () => {
   const { user } = useContext(AuthContext);
@@ -27,15 +140,29 @@ const Products = () => {
   const [withoutMovementData, setWithoutMovementData] = useState(null);
   const [loadingWM, setLoadingWM] = useState(false);
 
-  const withoutMovementIds = withoutMovementData
-    ? new Set(withoutMovementData.products.map(p => p._id))
-    : new Set();
+  const withoutMovementIds = useMemo(
+    () => withoutMovementData ? new Set(withoutMovementData.products.map(p => p._id)) : new Set(),
+    [withoutMovementData]
+  );
 
-  const displayProducts = products.filter(p => {
+  const displayProducts = useMemo(() => products.filter(p => {
     if (filterOnlyCombos && !p.esCombo) return false;
     if (filterWithoutMovement && !withoutMovementIds.has(p._id)) return false;
     return true;
-  });
+  }), [products, filterOnlyCombos, filterWithoutMovement, withoutMovementIds]);
+
+  // Paginación de la lista
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(24);
+  const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(displayProducts.length / pageSize)) : 1;
+  const visibleProducts = useMemo(() =>
+    pageSize > 0 ? displayProducts.slice((page - 1) * pageSize, page * pageSize) : displayProducts,
+    [displayProducts, page, pageSize]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, selectedCategory, filterOnlyCombos, filterWithoutMovement, pageSize]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,14 +198,20 @@ const Products = () => {
   const [bulkValue, setBulkValue] = useState('');
   const [showBulkValueInput, setShowBulkValueInput] = useState(false);
   const [loadingBulk, setLoadingBulk] = useState(false);
+  const [margenDefecto, setMargenDefecto] = useState(42);
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
   useEffect(() => {
-    fetchProducts();
-  }, [debouncedSearch, selectedCategory]);
+    api.get('/system-config')
+      .then(res => {
+        const c = res.data?.config;
+        if (c && c.margenSueltoDefecto) setMargenDefecto(c.margenSueltoDefecto);
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchCategories = async () => {
     try {
@@ -108,10 +241,9 @@ const Products = () => {
     }
   }, [debouncedSearch, selectedCategory]);
 
-  const calculateMargin = (compra, venta) => {
-    if (!compra || compra === 0) return 0;
-    return (((venta - compra) / compra) * 100).toFixed(2);
-  };
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleMarginChange = (e) => {
     const margin = parseFloat(e.target.value) || 0;
@@ -156,13 +288,13 @@ const Products = () => {
       nombre: '', descripcion: '', sku: '', categoria: categories[0]?._id || '', 
       precioCompra: 0, precioVenta: 0, stock: 0, stockMinimo: 5, 
       unidadMedida: 'unidad', proveedor: '', imagen: '',
-      esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: 42,
+      esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: margenDefecto,
       notasIA: '', aspectoBolsa: ''
     });
     setIsModalOpen(true);
   };
 
-  const openEditModal = (p) => {
+  const openEditModal = useCallback((p) => {
     setEditingId(p._id);
     setFormData({
       nombre: p.nombre, descripcion: p.descripcion || '', sku: p.sku, categoria: p.categoria._id, 
@@ -174,7 +306,7 @@ const Products = () => {
       notasIA: p.notasIA || '', aspectoBolsa: p.aspectoBolsa || ''
     });
     setIsModalOpen(true);
-  };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -213,7 +345,7 @@ const Products = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     if (window.confirm('¿Estás seguro de eliminar este producto?')) {
       try {
         await api.delete(`/products/${id}`);
@@ -223,13 +355,13 @@ const Products = () => {
         toast.error('Error al eliminar');
       }
     }
-  };
+  }, [fetchProducts]);
 
-  const openStockModal = (p) => {
+  const openStockModal = useCallback((p) => {
     setStockProduct(p);
     setStockFormData({ tipo: 'entrada', cantidad: '', motivo: '' });
     setIsStockModalOpen(true);
-  };
+  }, []);
 
   const handleStockSubmit = async (e) => {
     e.preventDefault();
@@ -243,7 +375,7 @@ const Products = () => {
     }
   };
 
-  const quickAdjustStock = async (product, amount) => {
+  const quickAdjustStock = useCallback(async (product, amount) => {
     if (product.stock + amount < 0) return toast.error('El stock no puede ser negativo');
     
     try {
@@ -258,7 +390,7 @@ const Products = () => {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error al actualizar stock');
     }
-  };
+  }, [fetchProducts]);
 
   const [exporting, setExporting] = useState(false);
 
@@ -275,17 +407,17 @@ const Products = () => {
   };
 
   // ── Selección masiva ──────────────────────────────────────────
-  const toggleSelect = (id) => {
+  const toggleSelect = useCallback((id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
+  }, []);
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selectedIds.length === displayProducts.length) {
       setSelectedIds([]);
     } else {
       setSelectedIds(displayProducts.map(p => p._id));
     }
-  };
+  }, [selectedIds, displayProducts]);
 
   const BULK_ACTIONS = [
     { value: 'eliminar',           label: '🗑️  Eliminar seleccionados',         needsValue: false },
@@ -350,10 +482,24 @@ const Products = () => {
   };
 
   const addComboItem = (product) => {
-    if (comboForm.items.some(i => i.productoId === product._id)) return toast.error('Ya está en el combo');
+    setComboForm(prev => {
+      const exist = prev.items.find(i => i.productoId === product._id);
+      if (exist) {
+        return {
+          ...prev,
+          items: prev.items.map(i => i.productoId === product._id ? { ...i, cantidad: i.cantidad + 1 } : i)
+        };
+      }
+      return { ...prev, items: [...prev.items, { productoId: product._id, cantidad: 1 }] };
+    });
+  };
+
+  const changeComboCantidad = (productoId, delta) => {
     setComboForm(prev => ({
       ...prev,
-      items: [...prev.items, { productoId: product._id, cantidad: 1 }]
+      items: prev.items
+        .map(i => i.productoId === productoId ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)
+        .filter(i => i.cantidad > 0)
     }));
   };
 
@@ -363,7 +509,7 @@ const Products = () => {
 
   const handleComboSubmit = async (e) => {
     e.preventDefault();
-    if (comboForm.items.length < 2) return toast.error('Mínimo 2 productos para un combo');
+    if (comboForm.items.reduce((s, i) => s + i.cantidad, 0) < 2) return toast.error('Mínimo 2 unidades para un combo');
     if (!comboForm.nombre.trim()) return toast.error('Nombre requerido');
 
     setComboLoading(true);
@@ -606,59 +752,20 @@ const Products = () => {
                 <tr><td colSpan="10" className="text-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></td></tr>
               ) : displayProducts.length === 0 ? (
                 <tr><td colSpan="10" className="text-center py-10 text-textMuted">{filterWithoutMovement ? 'No hay productos sin movimiento en esta categoría.' : 'No se encontraron productos.'}</td></tr>
-              ) : (
-                displayProducts.map((p) => {
-                   const isSelected = selectedIds.includes(p._id);
-                   return (
-                   <tr key={p._id} className={`hover:bg-stone-800/50 transition-colors ${isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}>
-                     <td className="px-4 py-4">
-                       <button onClick={() => toggleSelect(p._id)} className="text-textMuted hover:text-primary transition-colors">
-                         {isSelected ? <CheckSquare size={16} className="text-primary" /> : <Square size={16} />}
-                       </button>
-                     </td>
-                      <td className="px-4 py-4 font-medium flex items-center">
-                        {p.imagen && (
-                          <img src={p.imagen} alt={p.nombre} className="w-8 h-8 rounded shrink-0 mr-3 object-cover" />
-                        )}
-                        <span className="text-textLight">{p.nombre}</span>
-                    </td>
-                    <td className="px-4 py-4 text-textMuted font-mono text-xs">{p.sku}</td>
-                    <td className="px-4 py-4">{p.categoria?.nombre || '-'}</td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => quickAdjustStock(p, -1)} disabled={p.stock <= 0} className="w-6 h-6 flex items-center justify-center rounded bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors disabled:opacity-50"><Minus size={12} /></button>
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${p.stock > p.stockMinimo ? 'bg-emerald-500/20 text-emerald-500' : p.stock > 0 ? 'bg-warning/20 text-warning' : 'bg-danger/20 text-danger'}`}>
-                           {formatStock(p.stock)} {p.unidadMedida === 'unidad' ? 'u.' : p.unidadMedida}
-                        </span>
-                        <button onClick={() => quickAdjustStock(p, 1)} className="w-6 h-6 flex items-center justify-center rounded bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors"><Plus size={12} /></button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right">{formatCurrency(p.precioCompra)}</td>
-                    <td className="px-4 py-4 text-right">{formatCurrency(p.precioVenta)}</td>
-                    <td className="px-4 py-4 text-right">
-                      {p.precioKilo != null && p.precioKilo > 0 ? (
-                        <span className="text-xs font-bold text-primary">{formatCurrency(p.precioKilo)}/kg</span>
-                      ) : (
-                        <span className="text-xs text-textMuted">No especifica</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                       <span className={`text-xs ml-2 ${calculateMargin(p.precioCompra, p.precioVenta) > 30 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                          {calculateMargin(p.precioCompra, p.precioVenta)}%
-                       </span>
-                    </td>
-                    <td className="px-4 py-4">
-                       <div className="flex items-center justify-center space-x-3">
-                          <button onClick={() => openStockModal(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={16} /></button>
-                          <button onClick={() => openEditModal(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={16} /></button>
-                          {(user?.rol === 'admin') && (
-                             <button onClick={() => handleDelete(p._id)} className="text-danger hover:text-red-400" title="Eliminar"><Trash2 size={16} /></button>
-                          )}
-                       </div>
-                    </td>
-                  </tr>
-                   );
-                })
+) : (
+                visibleProducts.map((p) => (
+                   <ProductTableRow
+                     key={p._id}
+                     p={p}
+                     isSelected={selectedIds.includes(p._id)}
+                     isAdmin={user?.rol === 'admin'}
+                     onToggleSelect={toggleSelect}
+                     onQuickAdjust={quickAdjustStock}
+                     onOpenStock={openStockModal}
+                     onOpenEdit={openEditModal}
+                     onDelete={handleDelete}
+                   />
+                ))
               )}
             </tbody>
           </table>
@@ -673,66 +780,60 @@ const Products = () => {
               {filterWithoutMovement ? 'No hay productos sin movimiento en esta categoría.' : 'No se encontraron productos.'}
             </div>
           ) : (
-            displayProducts.map((p) => {
-              const isSelected = selectedIds.includes(p._id);
-              return (
-                <div key={p._id} className={`p-4 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}>
-                  <div className="flex items-start gap-3">
-                    <button onClick={() => toggleSelect(p._id)} className="text-textMuted hover:text-primary shrink-0 mt-0.5">
-                      {isSelected ? <CheckSquare size={18} className="text-primary" /> : <Square size={18} />}
-                    </button>
-                    {p.imagen && <img src={p.imagen} alt={p.nombre} className="w-10 h-10 rounded-lg object-cover shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-textLight text-sm">{p.nombre}</p>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => openStockModal(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={17} /></button>
-                          <button onClick={() => openEditModal(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={17} /></button>
-                          {user?.rol === 'admin' && (
-                            <button onClick={() => handleDelete(p._id)} className="text-danger hover:text-red-400" title="Eliminar"><Trash2 size={17} /></button>
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-textMuted font-mono mt-0.5 truncate">{p.sku} · {p.categoria?.nombre || '-'}</p>
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.stock > p.stockMinimo ? 'bg-emerald-500/20 text-emerald-500' : p.stock > 0 ? 'bg-warning/20 text-warning' : 'bg-danger/20 text-danger'}`}>
-                          {formatStock(p.stock)} {p.unidadMedida === 'unidad' ? 'u.' : p.unidadMedida}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${calculateMargin(p.precioCompra, p.precioVenta) > 30 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                          Margen {calculateMargin(p.precioCompra, p.precioVenta)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <button onClick={() => quickAdjustStock(p, -1)} disabled={p.stock <= 0} className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors disabled:opacity-50"><Minus size={15} /></button>
-                    <div className="flex-1 text-center">
-                      <span className="text-sm font-bold text-textLight">{formatStock(p.stock)} {p.unidadMedida === 'unidad' ? 'unidades' : p.unidadMedida}</span>
-                    </div>
-                    <button onClick={() => quickAdjustStock(p, 1)} className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors"><Plus size={15} /></button>
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
-                      <p className="text-[9px] uppercase font-bold text-textMuted">Compra</p>
-                      <p className="text-xs font-bold text-textLight">{formatCurrency(p.precioCompra)}</p>
-                    </div>
-                    <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
-                      <p className="text-[9px] uppercase font-bold text-textMuted">Venta</p>
-                      <p className="text-xs font-bold text-textLight">{formatCurrency(p.precioVenta)}</p>
-                    </div>
-                    <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
-                      <p className="text-[9px] uppercase font-bold text-textMuted">P. Kilo</p>
-                      <p className="text-xs font-bold text-primary">{p.precioKilo != null && p.precioKilo > 0 ? formatCurrency(p.precioKilo) : '—'}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+            visibleProducts.map((p) => (
+              <ProductCardRow
+                key={p._id}
+                p={p}
+                isSelected={selectedIds.includes(p._id)}
+                isAdmin={user?.rol === 'admin'}
+                onToggleSelect={toggleSelect}
+                onQuickAdjust={quickAdjustStock}
+                onOpenStock={openStockModal}
+                onOpenEdit={openEditModal}
+                onDelete={handleDelete}
+              />
+            ))
           )}
         </div>
-      </div>
 
-      {/* Modal Form */}
+        {/* Paginación */}
+        {displayProducts.length > 0 && (
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-stone-800 bg-stone-900/60">
+            <p className="text-xs text-textMuted">
+              {pageSize > 0
+                ? `${Math.min((page - 1) * pageSize + 1, displayProducts.length)}–${Math.min(page * pageSize, displayProducts.length)} de ${displayProducts.length}`
+                : `${displayProducts.length} productos`}
+            </p>
+            <div className="flex items-center gap-2">
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="bg-background border border-stone-700 rounded-lg px-2 py-1 text-xs text-textLight focus:ring-1 focus:ring-primary focus:outline-none"
+              >
+                <option value="12">12 por página</option>
+                <option value="24">24 por página</option>
+                <option value="48">48 por página</option>
+                <option value="0">Ver todos</option>
+              </select>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-700 bg-stone-800 text-textMuted hover:text-textLight hover:border-stone-500 transition-colors disabled:opacity-40"
+                  ><ChevronDown size={14} className="rotate-90" /></button>
+                  <span className="text-xs text-textMuted min-w-[3rem] text-center">{page} / {totalPages}</span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-stone-700 bg-stone-800 text-textMuted hover:text-textLight hover:border-stone-500 transition-colors disabled:opacity-40"
+                  ><ChevronDown size={14} className="-rotate-90" /></button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-surface w-full max-w-2xl rounded-t-2xl md:rounded-2xl border border-stone-700 shadow-2xl flex flex-col max-h-[92dvh] md:max-h-[90vh]">
@@ -969,8 +1070,8 @@ const Products = () => {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium text-textMuted">Productos del Combo (mín. 2)</label>
-                  <span className="text-xs text-textMuted">{comboForm.items.length} items</span>
+                  <label className="block text-sm font-medium text-textMuted">Productos del Combo (mín. 2 unidades)</label>
+                  <span className="text-xs text-textMuted">{comboForm.items.reduce((s, i) => s + i.cantidad, 0)} unidades</span>
                 </div>
                 <div className="mb-3">
                   <input 
@@ -986,7 +1087,8 @@ const Products = () => {
                     <p className="text-textMuted text-sm text-center py-4">Sin coincidencias</p>
                   ) : (
                     filteredComboProducts.map(p => {
-                      const inCombo = comboForm.items.some(i => i.productoId === p._id);
+                      const cant = comboForm.items.find(i => i.productoId === p._id)?.cantidad || 0;
+                      const inCombo = cant > 0;
                       return (
                         <div key={p._id} className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${inCombo ? 'bg-purple-500/10 border-purple-500/30' : 'bg-stone-800/30 border-stone-700 hover:border-stone-600'}`}>
                           {p.imagen && <img src={p.imagen} alt={p.nombre} className="w-10 h-10 rounded object-cover" />}
@@ -995,17 +1097,47 @@ const Products = () => {
                             <p className="text-xs text-textMuted">{p.categoria?.nombre} · Stock: {p.stock} {p.unidadMedida}</p>
                           </div>
                           <span className="text-xs text-emerald-400 font-bold">{formatCurrency(p.precioVenta)}</span>
-                          {inCombo ? (
-                            <button type="button" onClick={() => removeComboItem(comboForm.items.findIndex(i => i.productoId === p._id))} className="text-red-400 hover:text-red-300" title="Quitar"><Trash size={16} /></button>
-                          ) : (
-                            <button type="button" onClick={() => addComboItem(p)} className="text-primary hover:text-primary/80 font-bold px-3 py-1 rounded bg-primary/10" title="Agregar">+</button>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {inCombo && (
+                              <span className="text-xs font-bold bg-purple-500/20 text-purple-300 rounded-full px-2 py-0.5">x{cant}</span>
+                            )}
+                            <button type="button" onClick={() => addComboItem(p)} className="text-primary hover:text-primary/80 font-bold px-2.5 py-1 rounded bg-primary/10" title={inCombo ? 'Sumar otra unidad' : 'Agregar'}>+</button>
+                            {inCombo && (
+                              <button type="button" onClick={() => changeComboCantidad(p._id, -1)} className="text-red-400 hover:text-red-300 font-bold px-2.5 py-1 rounded bg-primary/10" title="Quitar una unidad">−</button>
+                            )}
+                          </div>
                         </div>
                       );
                     })
                   )}
                 </div>
               </div>
+
+              {comboForm.items.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-textLight">Ítems del combo</h4>
+                    <span className="text-xs text-textMuted">{comboForm.items.reduce((s, i) => s + i.cantidad, 0)} unidades en total</span>
+                  </div>
+                  {comboForm.items.map((item, idx) => {
+                    const prod = products.find(p => p._id === item.productoId);
+                    return (
+                      <div key={item.productoId} className="flex items-center gap-3 bg-stone-800/40 border border-stone-700 rounded-lg px-3 py-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-textLight truncate">{prod?.nombre}</p>
+                          <p className="text-xs text-textMuted">{formatCurrency(prod?.precioVenta || 0)} c/u · subtotal {formatCurrency((prod?.precioVenta || 0) * item.cantidad)}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" onClick={() => changeComboCantidad(item.productoId, -1)} className="w-7 h-7 rounded-lg bg-stone-800 hover:bg-stone-700 text-textLight font-bold" disabled={item.cantidad <= 1} title="Restar unidad">−</button>
+                          <span className="text-sm font-bold text-textLight w-7 text-center">x{item.cantidad}</span>
+                          <button type="button" onClick={() => prod && addComboItem(prod)} className="w-7 h-7 rounded-lg bg-primary/15 hover:bg-primary/25 text-primary font-bold" title="Sumar unidad">+</button>
+                          <button type="button" onClick={() => removeComboItem(idx)} className="text-red-400 hover:text-red-300 ml-1" title="Quitar línea"><Trash size={16} /></button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {comboForm.items.length > 0 && (() => {
       const precioLista = comboForm.items.reduce((s, i) => s + (products.find(p => p._id === i.productoId)?.precioVenta || 0) * i.cantidad, 0);
@@ -1018,7 +1150,7 @@ const Products = () => {
         <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 space-y-2">
           <h4 className="text-textLight font-medium">Resumen del Combo</h4>
           <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="flex justify-between"><span className="text-textMuted">Productos</span><span className="text-textLight font-bold">{comboForm.items.length}</span></div>
+            <div className="flex justify-between"><span className="text-textMuted">Unidades</span><span className="text-textLight font-bold">{comboForm.items.reduce((s, i) => s + i.cantidad, 0)} ({comboForm.items.length} productos)</span></div>
             <div className="flex justify-between"><span className="text-textMuted">Descuento</span><span className="text-pink-400 font-bold">{comboForm.descuentoPorcentaje}%</span></div>
             <div className="flex justify-between"><span className="text-textMuted">Precio lista</span><span className="text-textLight font-bold">{precioLista.toLocaleString('es-AR', {style:'currency', currency:'ARS'})}</span></div>
             <div className="flex justify-between"><span className="text-textMuted">Con descuento</span><span className="text-pink-400 font-bold">{precioConDesc.toLocaleString('es-AR', {style:'currency', currency:'ARS'})}</span></div>
@@ -1032,7 +1164,7 @@ const Products = () => {
 
               <div className="pt-4 flex gap-3 border-t border-stone-800">
                 <button type="button" onClick={() => setIsComboModalOpen(false)} className="flex-1 py-3 rounded-lg border border-stone-700 text-textLight hover:bg-stone-800 transition-colors">Cancelar</button>
-                <button type="submit" disabled={comboLoading || comboForm.items.length < 2} className="flex-1 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white font-semibold transition-colors shadow-lg shadow-purple-500/20">
+                <button type="submit" disabled={comboLoading || comboForm.items.reduce((s, i) => s + i.cantidad, 0) < 2} className="flex-1 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white font-semibold transition-colors shadow-lg shadow-purple-500/20">
                   {comboLoading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2 inline-block"></div>

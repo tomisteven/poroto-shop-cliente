@@ -1,11 +1,137 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { History, Search, FileText, Ban, Printer, X, Download, User, UserPlus, Award, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
+import SalesEditor from '../components/SalesEditor';
 
-const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
+const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+const formatCurrency = (val) => arsFormat.format(val);
+
+// Ganancia por venta = total cobrado - costo de los ítems (precios históricos de la venta)
+const calcularGanancia = (sale) => {
+  const costoTotal = (sale.items || []).reduce((acc, it) => {
+    const unidad = it.precioCompraHisto || 0;
+    const costo = it.esVentaSuelta ? unidad : unidad * (it.cantidad || 0);
+    return acc + costo;
+  }, 0);
+  return (sale.totalFinal || 0) - costoTotal;
+};
+
+const GananciaBadge = ({ sale }) => {
+  const ganancia = calcularGanancia(sale);
+  const positivo = ganancia >= 0;
+  return (
+    <span className={`font-bold ${positivo ? 'text-emerald-400' : 'text-danger'}`}>
+      {positivo ? '' : '-'}{formatCurrency(Math.abs(ganancia))}
+    </span>
+  );
+};
+
+const SalesTableRow = React.memo(function SalesTableRow({ sale, isAdmin, onAssign, onPrint, onAnular, onEdit, onOpen }) {
+  return (
+    <tr className="hover:bg-stone-800/50 transition-colors cursor-pointer" onClick={(e) => { if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) onOpen(sale); }}>
+      <td className="px-6 py-4 font-mono font-bold text-primary">{sale.numeroTicket}</td>
+      <td className="px-6 py-4">
+        <div>{new Date(sale.fecha).toLocaleDateString()}</div>
+        <div className="text-xs text-textMuted">{new Date(sale.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+      </td>
+      <td className="px-6 py-4">{sale.empleado?.nombre || 'Desconocido'}</td>
+      <td className="px-6 py-4">
+        {sale.cliente ? (
+          <div className="flex items-center gap-2">
+            <User size={14} className="text-primary shrink-0" />
+            <span className="truncate max-w-[160px]">{sale.cliente.nombre}</span>
+            {sale.puntosGanados > 0 && (
+              <span className="text-[10px] font-bold text-amber-400 whitespace-nowrap">+{sale.puntosGanados} pts</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-textMuted">Sin asignar</span>
+        )}
+      </td>
+      <td className="px-6 py-4 uppercase text-xs font-semibold">{sale.metodoPago}</td>
+      <td className="px-6 py-4 text-right font-bold">{formatCurrency(sale.totalFinal)}</td>
+      <td className="px-6 py-4 text-right whitespace-nowrap"><GananciaBadge sale={sale} /></td>
+      <td className="px-6 py-4 text-center">
+        <span className={`px-2 py-1 rounded text-xs font-bold ${sale.estado === 'completada' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-danger/20 text-danger'}`}>
+          {sale.estado.toUpperCase()}
+        </span>
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center justify-center gap-3">
+          {sale.estado === 'completada' && (
+            <button onClick={(e) => { e.stopPropagation(); onAssign(sale); }} className="text-primary hover:text-primary/80 transition-colors" title={sale.cliente ? 'Cambiar cliente' : 'Asignar cliente'}><UserPlus size={18} /></button>
+          )}
+          {isAdmin && sale.estado === 'completada' && (
+            <button onClick={(e) => { e.stopPropagation(); onEdit(sale); }} className="text-primary hover:text-primary/80 transition-colors" title="Editar venta"><Pencil size={18} /></button>
+          )}
+          <button onClick={(e) => { e.stopPropagation(); onPrint(sale); }} className="text-stone-400 hover:text-white transition-colors"><Printer size={18} /></button>
+          {(isAdmin && sale.estado === 'completada') && (
+            <button onClick={(e) => { e.stopPropagation(); onAnular(sale._id); }} className="text-danger hover:text-red-400" title="Anular Venta"><Ban size={18} /></button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
+const SalesCardRow = React.memo(function SalesCardRow({ sale, isAdmin, onAssign, onPrint, onAnular, onEdit, onOpen }) {
+  return (
+    <div className="p-4 hover:bg-stone-800/30 transition-colors cursor-pointer" onClick={(e) => { if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) onOpen(sale); }}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-mono font-bold text-primary">{sale.numeroTicket}</p>
+          <p className="text-xs text-textMuted mt-0.5">
+            {new Date(sale.fecha).toLocaleDateString()} · {new Date(sale.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+          </p>
+        </div>
+        <span className={`px-2 py-1 rounded text-[10px] font-bold shrink-0 ${sale.estado === 'completada' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-danger/20 text-danger'}`}>
+          {sale.estado.toUpperCase()}
+        </span>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-textMuted">Empleado: <span className="text-textLight font-medium">{sale.empleado?.nombre || 'Desconocido'}</span></p>
+          <p className="text-xs text-textMuted mt-0.5 truncate">
+            {sale.cliente ? (
+              <span className="flex items-center gap-1 text-textLight font-medium">
+                <User size={12} className="text-primary shrink-0" /> {sale.cliente.nombre}
+                {sale.puntosGanados > 0 && <span className="text-[10px] font-bold text-amber-400">+{sale.puntosGanados} pts</span>}
+              </span>
+            ) : 'Cliente: sin asignar'}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[10px] uppercase font-bold text-textMuted">{sale.metodoPago}</p>
+          <p className="text-base font-extrabold text-textLight">{formatCurrency(sale.totalFinal)}</p>
+          <p className="text-[11px] text-textMuted">Ganancia: <GananciaBadge sale={sale} /></p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        {sale.estado === 'completada' && (
+          <button onClick={(e) => { e.stopPropagation(); onAssign(sale); }} className="flex-1 py-2 rounded-lg bg-stone-800 text-primary hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold" title={sale.cliente ? 'Cambiar cliente' : 'Asignar cliente'}>
+            <UserPlus size={14} /> Cliente
+          </button>
+        )}
+        {isAdmin && sale.estado === 'completada' && (
+          <button onClick={(e) => { e.stopPropagation(); onEdit(sale); }} className="flex-1 py-2 rounded-lg bg-stone-800 text-primary hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold">
+            <Pencil size={14} /> Editar
+          </button>
+        )}
+        <button onClick={(e) => { e.stopPropagation(); onPrint(sale); }} className="flex-1 py-2 rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold">
+          <Printer size={14} /> Imprimir
+        </button>
+        {(isAdmin && sale.estado === 'completada') && (
+          <button onClick={(e) => { e.stopPropagation(); onAnular(sale._id); }} className="py-2 px-4 rounded-lg bg-danger/10 text-danger hover:bg-danger/20 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold">
+            <Ban size={14} /> Anular
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
 
 const Sales = () => {
   const { user } = useContext(AuthContext);
@@ -15,9 +141,14 @@ const Sales = () => {
   // Filters
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const debouncedStartDate = useDebounce(startDate, 400);
+  const debouncedEndDate = useDebounce(endDate, 400);
 
   // Modal
   const [selectedSale, setSelectedSale] = useState(null);
+
+  // Editar venta
+  const [editSale, setEditSale] = useState(null);
 
   // Asignar cliente a venta
   const [customerModal, setCustomerModal] = useState(null);
@@ -25,10 +156,6 @@ const Sales = () => {
   const [customerSearch, setCustomerSearch] = useState('');
   const debouncedCustomerSearch = useDebounce(customerSearch, 300);
   const [customersLoading, setCustomersLoading] = useState(false);
-
-  useEffect(() => {
-    fetchSales();
-  }, [startDate, endDate]);
 
   useEffect(() => {
     if (!customerModal) return;
@@ -42,30 +169,34 @@ const Sales = () => {
       .finally(() => setCustomersLoading(false));
   }, [customerModal, debouncedCustomerSearch]);
 
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     setLoading(true);
     try {
       let url = '/sales?';
-      if (startDate) url += `startDate=${startDate}&`;
-      if (endDate) url += `endDate=${endDate}`;
+      if (debouncedStartDate) url += `startDate=${debouncedStartDate}&`;
+      if (debouncedEndDate) url += `endDate=${debouncedEndDate}`;
       
       const res = await api.get(url);
       setSales(res.data);
-    } catch (error) {
+    } catch {
       toast.error('Error al obtener ventas');
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedStartDate, debouncedEndDate]);
 
-  const handlePrint = (sale) => {
+  useEffect(() => {
+    fetchSales();
+  }, [fetchSales]);
+
+  const handlePrint = useCallback((sale) => {
     setSelectedSale(sale);
     setTimeout(() => {
       window.print();
     }, 100);
-  };
+  }, []);
 
-  const handleAnular = async (id) => {
+  const handleAnular = useCallback(async (id) => {
     if (window.confirm('¿Está seguro de anular esta venta? Esto repondrá el stock original.')) {
       try {
         await api.patch(`/sales/${id}/anular`);
@@ -78,9 +209,9 @@ const Sales = () => {
         toast.error(error.response?.data?.message || 'Error al anular venta');
       }
     }
-  };
+  }, [fetchSales, selectedSale]);
 
-  const handleAssignCustomer = async (saleId, clienteId) => {
+  const handleAssignCustomer = useCallback(async (saleId, clienteId) => {
     try {
       const { data } = await api.patch(`/sales/${saleId}/cliente`, { cliente: clienteId });
       setSales(prev => prev.map(s => s._id === saleId ? data : s));
@@ -89,7 +220,9 @@ const Sales = () => {
     } catch (error) {
       toast.error(error.response?.data?.message || 'Error al asignar cliente');
     }
-  };
+  }, []);
+
+  const isAdmin = user?.rol === 'admin';
 
   const exportToCSV = () => {
      if (!sales || sales.length === 0) return toast.error('No hay ventas para exportar');
@@ -163,56 +296,28 @@ const Sales = () => {
                 <th className="px-6 py-4">Cliente</th>
                 <th className="px-6 py-4">Método Pago</th>
                 <th className="px-6 py-4 text-right">Total</th>
+                <th className="px-6 py-4 text-right">Ganancia</th>
                 <th className="px-6 py-4 text-center">Estado</th>
                 <th className="px-6 py-4 text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-800">
               {loading ? (
-                <tr><td colSpan="8" className="text-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></td></tr>
+                <tr><td colSpan="9" className="text-center py-10"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div></td></tr>
               ) : sales.length === 0 ? (
-                <tr><td colSpan="8" className="text-center py-10 text-textMuted">No se encontraron ventas en este período.</td></tr>
+                <tr><td colSpan="9" className="text-center py-10 text-textMuted">No se encontraron ventas en este período.</td></tr>
               ) : (
                 sales.map((sale) => (
-                  <tr key={sale._id} className="hover:bg-stone-800/50 transition-colors cursor-pointer" onClick={(e) => { if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) setSelectedSale(sale); }}>
-                    <td className="px-6 py-4 font-mono font-bold text-primary">{sale.numeroTicket}</td>
-                    <td className="px-6 py-4">
-                       <div>{new Date(sale.fecha).toLocaleDateString()}</div>
-                       <div className="text-xs text-textMuted">{new Date(sale.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                    </td>
-                    <td className="px-6 py-4">{sale.empleado?.nombre || 'Desconocido'}</td>
-                    <td className="px-6 py-4">
-                      {sale.cliente ? (
-                        <div className="flex items-center gap-2">
-                          <User size={14} className="text-primary shrink-0" />
-                          <span className="truncate max-w-[160px]">{sale.cliente.nombre}</span>
-                          {sale.puntosGanados > 0 && (
-                            <span className="text-[10px] font-bold text-amber-400 whitespace-nowrap">+{sale.puntosGanados} pts</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-textMuted">Sin asignar</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 uppercase text-xs font-semibold">{sale.metodoPago}</td>
-                    <td className="px-6 py-4 text-right font-bold">{formatCurrency(sale.totalFinal)}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${sale.estado === 'completada' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-danger/20 text-danger'}`}>
-                        {sale.estado.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-<div className="flex items-center justify-center gap-3">
-                          {sale.estado === 'completada' && (
-                            <button onClick={(e) => { e.stopPropagation(); setCustomerModal(sale); }} className="text-primary hover:text-primary/80 transition-colors" title={sale.cliente ? 'Cambiar cliente' : 'Asignar cliente'}><UserPlus size={18} /></button>
-                          )}
-                          <button onClick={(e) => { e.stopPropagation(); handlePrint(sale); }} className="text-stone-400 hover:text-white transition-colors"><Printer size={18} /></button>
-                          {(user?.rol === 'admin' && sale.estado === 'completada') && (
-                            <button onClick={(e) => { e.stopPropagation(); handleAnular(sale._id); }} className="text-danger hover:text-red-400" title="Anular Venta"><Ban size={18} /></button>
-                          )}
-                        </div>
-                    </td>
-                  </tr>
+                  <SalesTableRow
+                    key={sale._id}
+                    sale={sale}
+                    isAdmin={isAdmin}
+                    onAssign={setCustomerModal}
+                    onEdit={setEditSale}
+                    onPrint={handlePrint}
+                    onAnular={handleAnular}
+                    onOpen={setSelectedSale}
+                  />
                 ))
               )}
             </tbody>
@@ -227,51 +332,16 @@ const Sales = () => {
             <div className="px-4 py-12 text-center text-textMuted">No se encontraron ventas en este período.</div>
           ) : (
             sales.map((sale) => (
-              <div key={sale._id} className="p-4 hover:bg-stone-800/30 transition-colors cursor-pointer" onClick={(e) => { if (e.target.tagName !== 'BUTTON' && !e.target.closest('button')) setSelectedSale(sale); }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-mono font-bold text-primary">{sale.numeroTicket}</p>
-                    <p className="text-xs text-textMuted mt-0.5">
-                      {new Date(sale.fecha).toLocaleDateString()} · {new Date(sale.fecha).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </p>
-                  </div>
-                  <span className={`px-2 py-1 rounded text-[10px] font-bold shrink-0 ${sale.estado === 'completada' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-danger/20 text-danger'}`}>
-                    {sale.estado.toUpperCase()}
-                  </span>
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs text-textMuted">Empleado: <span className="text-textLight font-medium">{sale.empleado?.nombre || 'Desconocido'}</span></p>
-                    <p className="text-xs text-textMuted mt-0.5 truncate">
-                      {sale.cliente ? (
-                        <span className="flex items-center gap-1 text-textLight font-medium">
-                          <User size={12} className="text-primary shrink-0" /> {sale.cliente.nombre}
-                          {sale.puntosGanados > 0 && <span className="text-[10px] font-bold text-amber-400">+{sale.puntosGanados} pts</span>}
-                        </span>
-                      ) : 'Cliente: sin asignar'}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[10px] uppercase font-bold text-textMuted">{sale.metodoPago}</p>
-                    <p className="text-base font-extrabold text-textLight">{formatCurrency(sale.totalFinal)}</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  {sale.estado === 'completada' && (
-                    <button onClick={(e) => { e.stopPropagation(); setCustomerModal(sale); }} className="flex-1 py-2 rounded-lg bg-stone-800 text-primary hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold" title={sale.cliente ? 'Cambiar cliente' : 'Asignar cliente'}>
-                      <UserPlus size={14} /> Cliente
-                    </button>
-                  )}
-                  <button onClick={(e) => { e.stopPropagation(); handlePrint(sale); }} className="flex-1 py-2 rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold">
-                    <Printer size={14} /> Imprimir
-                  </button>
-                  {(user?.rol === 'admin' && sale.estado === 'completada') && (
-                    <button onClick={(e) => { e.stopPropagation(); handleAnular(sale._id); }} className="py-2 px-4 rounded-lg bg-danger/10 text-danger hover:bg-danger/20 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold">
-                      <Ban size={14} /> Anular
-                    </button>
-                  )}
-                </div>
-              </div>
+              <SalesCardRow
+                key={sale._id}
+                sale={sale}
+                isAdmin={isAdmin}
+                onAssign={setCustomerModal}
+                onEdit={setEditSale}
+                onPrint={handlePrint}
+                onAnular={handleAnular}
+                onOpen={setSelectedSale}
+              />
             ))
           )}
         </div>
@@ -398,13 +468,18 @@ const Sales = () => {
                   </div>
                </div>
                
-               <div className="p-4 bg-stone-100 no-print mt-auto shrink-0">
-                  <button onClick={() => window.print()} className="w-full bg-stone-800 text-white font-bold py-3 rounded-lg flex justify-center items-center hover:bg-black transition-colors">
-                     <Printer size={18} className="mr-2" /> RE-IMPRIMIR TICKET
-                  </button>
-               </div>
-            </div>
-         </div>
+<div className="p-4 bg-stone-100 no-print mt-auto shrink-0">
+                   <button onClick={() => window.print()} className="w-full bg-stone-800 text-white font-bold py-3 rounded-lg flex justify-center items-center hover:bg-black transition-colors">
+                      <Printer size={18} className="mr-2" /> RE-IMPRIMIR TICKET
+                   </button>
+                </div>
+             </div>
+</div>
+        )}
+
+      {/* Modal Editar Venta */}
+      {editSale && (
+        <SalesEditor sale={editSale} onClose={() => setEditSale(null)} onSaved={() => { setEditSale(null); fetchSales(); }} />
       )}
     </div>
   );

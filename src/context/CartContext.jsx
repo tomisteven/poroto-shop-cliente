@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useCallback, useMemo } from 'react';
 
 export const CartContext = createContext();
 
@@ -6,7 +6,7 @@ export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState([]);
   const [discount, setDiscount] = useState(0); // en %
 
-  const addToCart = (product, options = {}) => {
+  const addToCart = useCallback((product, options = {}) => {
     // === Promoción (combo) ===
     if (options.esPromocion) {
       const cartItemId = `promo-${options.promocion}`;
@@ -102,16 +102,18 @@ export const CartProvider = ({ children }) => {
       }]);
     }
     return true;
-  };
+  }, [cartItems]);
 
-  const updateQuantity = (cartItemId, newQuantity) => {
+  const removeFromCart = useCallback((cartItemId) => {
+    setCartItems((prev) => prev.filter((x) => x.cartItemId !== cartItemId));
+  }, []);
+
+  const updateQuantity = useCallback((cartItemId, newQuantity) => {
     if (newQuantity < 1) return removeFromCart(cartItemId);
-    
-    setCartItems(
-      cartItems.map((x) => {
+
+    setCartItems((prev) =>
+      prev.map((x) => {
         if (x.cartItemId === cartItemId) {
-          // Si es venta suelta, multiplicar stockDeducido base no es directo,
-          // pero asumimos que newQuantity multiplica el "paquete" tal como se armó
           const multiplier = newQuantity;
           const originalStockDeducido = x.stockDeducido / x.cantidad; // deducción de 1 
           return { 
@@ -125,22 +127,23 @@ export const CartProvider = ({ children }) => {
         return x;
       })
     );
-  };
+  }, [removeFromCart]);
 
-  const removeFromCart = (cartItemId) => {
-    setCartItems(cartItems.filter((x) => x.cartItemId !== cartItemId));
-  };
-
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCartItems([]);
     setDiscount(0);
-  };
+  }, []);
 
-  const cartSubtotal = cartItems.reduce((acc, item) => acc + item.subtotal, 0);
-  const cartTotal = cartSubtotal - (cartSubtotal * (discount / 100));
+  const cartSubtotal = useMemo(() => cartItems.reduce((acc, item) => acc + item.subtotal, 0), [cartItems]);
+  const cartTotal = useMemo(() => cartSubtotal - (cartSubtotal * (discount / 100)), [cartSubtotal, discount]);
+
+  const value = useMemo(() => ({
+    cartItems, addToCart, updateQuantity, removeFromCart, clearCart,
+    discount, setDiscount, cartSubtotal, cartTotal
+  }), [cartItems, addToCart, updateQuantity, removeFromCart, clearCart, discount, cartSubtotal, cartTotal]);
 
   return (
-    <CartContext.Provider value={{ cartItems, addToCart, updateQuantity, removeFromCart, clearCart, discount, setDiscount, cartSubtotal, cartTotal }}>
+    <CartContext.Provider value={value}>
       {children}
     </CartContext.Provider>
   );

@@ -32,10 +32,23 @@ import {
   Search,
   PawPrint,
   Clock,
-  Bot
+  Bot,
+  Settings
 } from 'lucide-react';
 
 const UPDATES = [
+  {
+    version: '2.6.0',
+    title: 'Configuración del Sistema',
+    icon: Settings,
+    items: [
+      'Nueva sección "Configuración" (solo admin) para editar las variables que antes estaban fijas',
+      'Meta de facturación diaria y mensual: las metas del Dashboard ahora se pueden cambiar fácil',
+      'Meta de ganancia diaria: nueva barra de progreso de la ganancia del día en el Dashboard (default $30.000)',
+      'Margen por defecto para venta suelta (%) usado al crear alimentos fraccionables',
+      'Pesos por punto de los clientes afiliados (cada $X = 1 punto)'
+    ]
+  },
   {
     version: '2.5.0',
     title: 'Programa de Afiliados',
@@ -204,6 +217,7 @@ const buildMenuGroups = (isAdmin) => {
       items: [
         { name: 'Reportes', path: '/reports', icon: BarChart3 },
         { name: 'Estadísticas', path: '/statistics', icon: PieChart },
+        { name: 'Analizar Productos', path: '/analisis-productos', icon: TrendingUp },
       ],
     },
     {
@@ -216,6 +230,10 @@ const buildMenuGroups = (isAdmin) => {
 
   if (isAdmin) {
     groups[3].items.push({ name: 'Usuarios', path: '/users', icon: Users });
+    groups.push({
+      title: 'Sistema',
+      items: [{ name: 'Configuración', path: '/configuracion', icon: Settings }],
+    });
   }
 
   return groups;

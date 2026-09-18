@@ -1,16 +1,280 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../api/axios';
-import { Search, Package, MessageCircle, Plus, Minus, Trash2, X, ShoppingCart, CheckCircle2, Loader } from 'lucide-react';
+import {
+  Search, Package, MessageCircle, Plus, Minus, Trash2, X, ShoppingCart,
+  CheckCircle2, Loader, MapPin, Phone, Mail, Clock, ChevronLeft, ChevronRight,
+  PawPrint, Truck, ArrowRight, Sparkles, Heart, ShieldCheck, Store, Star
+} from 'lucide-react';
 import Chatbot from '../components/Chatbot';
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
+const isKg = (p) => p.unidadMedida === 'kg';
 
+const STORE = {
+  nombre: 'Poroto PetShop',
+  tagline: 'Todo lo que tu mascota necesita, en un solo lugar',
+  descripcion: 'Alimentos premium, accesorios, juguetes y mas. Elegi online, retira en el local o coordina el envio.',
+  ubicacion: 'Av. Siempre Viva 742, Buenos Aires, Argentina',
+  telefono: '+54 11 5555-1234',
+  whatsapp: import.meta.env.VITE_OWNER_WHATSAPP || '5491155551234',
+  email: 'info@porotopetshop.com',
+  horario: 'Lunes a Sabado · 9:00 a 20:00 hs',
+  instagram: 'https://instagram.com/porotopetshop',
+  facebook: 'https://facebook.com/porotopetshop',
+};
+
+const BANNERS = [
+  {
+    id: 'b1',
+    imagen: '/banners/banner1.jpg',
+    fallbackGradient: 'from-emerald-600 via-emerald-500 to-teal-600',
+    etiqueta: 'Nueva temporada',
+    titulo: 'Todo para tu mascota',
+    sub: 'Alimentos premium, accesorios y juguetes. Elegi online y pasalo a buscar o pedi el envio.',
+    cta: 'Ver productos',
+    action: 'products',
+  },
+  {
+    id: 'b2',
+    imagen: '/banners/banner2.jpg',
+    fallbackGradient: 'from-amber-500 via-orange-500 to-orange-600',
+    etiqueta: 'Pedidos rapidos',
+    titulo: 'Pedi por WhatsApp',
+    sub: 'Arma tu pedido en el catalogo y envialo directo al local. Rapido, facil y sin esperas.',
+    cta: 'Hacer un pedido',
+    action: 'order',
+  },
+];
+
+const BENEFITS = [
+  { icon: Truck, text: 'Envios a coordinar', sub: 'Coordinamos la entrega' },
+  { icon: Store, text: 'Retiro en local', sub: 'Pasalo a buscar' },
+  { icon: ShieldCheck, text: 'Pago seguro', sub: 'Efectivo, transferencia' },
+  { icon: Heart, text: 'Atencion personalizada', sub: 'Te asesoramos' },
+];
+
+/* ─── Iconos SVG para redes (lucide-react los removio) ─── */
+const InstagramIcon = ({ size = 18, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
+
+const FacebookIcon = ({ size = 18, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </svg>
+);
+
+/* ─── ProductCard ─── */
+const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove }) => {
+  const soldByKg = isKg(p);
+  const vendeSuelto = soldByKg || (p.precioKilo && p.precioKilo > 0);
+  const bagCart = cart.find((i) => i.producto === p._id && i.tipo === 'bag');
+  const kiloCart = cart.find((i) => i.producto === p._id && i.tipo === 'kilo');
+
+  const inCartControls = (item, label) => (
+    <div className="flex items-center justify-between bg-emerald-900/20 rounded-lg px-3 py-2 border border-emerald-600/30">
+      <span className="text-xs text-emerald-400 font-medium">{label}</span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => onUpdate(p._id, -1, item.tipo)}
+          className="w-7 h-7 rounded-md bg-[#1a1a1a] border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
+        >
+          <Minus size={12} />
+        </button>
+        <span className="text-sm font-bold text-white min-w-[40px] text-center">
+          {item.cantidad} {item.tipo === 'kilo' ? 'kg' : 'un'}
+        </span>
+        <button
+          onClick={() => onUpdate(p._id, 1, item.tipo)}
+          className="w-7 h-7 rounded-md bg-[#1a1a1a] border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
+        >
+          <Plus size={12} />
+        </button>
+        <button
+          onClick={() => onRemove(p._id, item.tipo)}
+          className="w-7 h-7 rounded-md text-neutral-500 hover:text-red-400 flex items-center justify-center transition-colors"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  );
+
+  const kiloButtons = () => (
+    <div className="grid grid-cols-2 gap-2">
+      <button
+        onClick={() => onAdd(p, 1, 'kilo')}
+        disabled={p.stock <= 0}
+        className="py-2 rounded-lg bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-sm font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        1 kg
+      </button>
+      <button
+        onClick={() => onAdd(p, 2, 'kilo')}
+        disabled={p.stock <= 0}
+        className="py-2 rounded-lg bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-sm font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        2 kg
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="group bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden hover:border-emerald-600/40 hover:shadow-lg hover:shadow-black/30 transition-all flex flex-col">
+      {/* Imagen del producto */}
+      <div className="relative h-44 bg-[#222] overflow-hidden">
+        {p.imagen ? (
+          <img
+            src={p.imagen}
+            alt={p.nombre}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+          />
+        ) : null}
+        <div
+          className={`${p.imagen ? 'hidden' : 'flex'} w-full h-full items-center justify-center bg-gradient-to-br from-[#1a1a1a] to-[#222]`}
+        >
+          <PawPrint size={40} className="text-[#333]" />
+        </div>
+
+        {/* Badges */}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+          {p.categoria && (
+            <span
+              className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md backdrop-blur-sm"
+              style={{
+                backgroundColor: p.categoria.color ? `${p.categoria.color}30` : 'rgba(0,0,0,0.5)',
+                color: p.categoria.color || '#ccc',
+                border: `1px solid ${p.categoria.color ? `${p.categoria.color}40` : 'rgba(255,255,255,0.1)'}`,
+              }}
+            >
+              {p.categoria.nombre}
+            </span>
+          )}
+        </div>
+
+        <div className="absolute top-3 right-3">
+          {p.stock > 0 ? (
+            <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 backdrop-blur-sm">
+              En stock
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-red-500/20 text-red-400 border border-red-500/30 backdrop-blur-sm">
+              Sin stock
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="p-4 flex flex-col flex-1">
+        <h3 className="text-sm font-semibold text-white leading-snug mb-1 line-clamp-2 min-h-[2.5rem]">
+          {p.nombre}
+        </h3>
+
+        {p.descripcion && (
+          <p className="text-xs text-neutral-500 leading-relaxed mb-3 line-clamp-2">{p.descripcion}</p>
+        )}
+
+        <div className="mt-auto">
+          {soldByKg ? (
+            <>
+              <p className="text-lg font-bold text-white mb-3">
+                {formatCurrency(p.precioVenta)}
+                <span className="text-xs font-normal text-neutral-500 ml-1">/kg</span>
+              </p>
+              {p.stock > 0 && !kiloCart && <div className="mb-3">{kiloButtons()}</div>}
+              {kiloCart && inCartControls(kiloCart, 'En tu pedido')}
+            </>
+          ) : (
+            <>
+              <p className="text-lg font-bold text-white mb-3">
+                {formatCurrency(p.precioVenta)}
+                {p.kilosPorBolsa && (
+                  <span className="text-xs font-normal text-neutral-500 ml-1">bolsa · {p.kilosPorBolsa}kg</span>
+                )}
+              </p>
+
+              {vendeSuelto ? (
+                <div className="space-y-3">
+                  {bagCart ? (
+                    inCartControls(bagCart, 'Bolsa en pedido')
+                  ) : p.stock > 0 && !p.esCombo && (
+                    <button
+                      onClick={() => onAdd(p, 1, 'bag')}
+                      className="w-full py-2.5 rounded-lg border border-[#333] text-neutral-300 text-sm font-medium hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors"
+                    >
+                      Agregar bolsa
+                    </button>
+                  )}
+
+                  <div className="border-t border-[#2a2a2a] pt-3">
+                    <p className="text-xs text-neutral-500 mb-1.5">
+                      Suelto: <span className="text-neutral-300 font-medium">{formatCurrency(p.precioKilo)}/kg</span>
+                    </p>
+                    {kiloCart ? (
+                      inCartControls(kiloCart, 'Suelto en pedido')
+                    ) : p.stock > 0 ? (
+                      kiloButtons()
+                    ) : (
+                      <p className="text-xs text-neutral-600">Agotado</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {p.stock > 0 && !bagCart && !p.esCombo && (
+                    <button
+                      onClick={() => onAdd(p, 1, 'bag')}
+                      className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Plus size={14} />
+                      Agregar al pedido
+                    </button>
+                  )}
+                  {p.esCombo && p.comboVendible === false && !bagCart && (
+                    <button
+                      disabled
+                      className="w-full py-2.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium cursor-not-allowed"
+                    >
+                      Sin stock (combo)
+                    </button>
+                  )}
+                  {bagCart && inCartControls(bagCart, 'En tu pedido')}
+                </>
+              )}
+            </>
+          )}
+
+          {p.stock <= 0 && !bagCart && !kiloCart && (
+            <div className="py-2 text-center">
+              <span className="text-xs text-neutral-500 font-medium">Agotado</span>
+            </div>
+          )}
+
+          {soldByKg && <p className="text-xs text-neutral-600 mt-2">Venta por kilo</p>}
+          {p.unidadMedida && p.unidadMedida !== 'unidad' && p.unidadMedida !== 'kg' && (
+            <p className="text-xs text-neutral-600 mt-2">Venta por {p.unidadMedida}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Catalogo (Landing Page + E-commerce) ─── */
 const Catalogo = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [banner, setBanner] = useState(0);
+  const [bannerErrors, setBannerErrors] = useState({});
 
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
@@ -18,6 +282,8 @@ const Catalogo = () => {
   const [orderData, setOrderData] = useState({ nombre: '', telefono: '', notas: '' });
   const [orderLoading, setOrderLoading] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
+
+  const productsRef = useRef(null);
 
   useEffect(() => {
     const fetchCatalog = async () => {
@@ -35,12 +301,14 @@ const Catalogo = () => {
     fetchCatalog();
   }, []);
 
-  const isKg = (p) => p.unidadMedida === 'kg';
+  useEffect(() => {
+    const t = setInterval(() => setBanner((b) => (b + 1) % BANNERS.length), 7000);
+    return () => clearInterval(t);
+  }, []);
 
   const addToCart = useCallback((product, qty = 1, tipo = 'bag') => {
-    // Validar combos sin stock
     if (product.esCombo && product.comboVendible === false) {
-      alert('❌ Este combo no tiene stock disponible en sus componentes. No se puede vender hasta reponer.');
+      alert('Este combo no tiene stock disponible en sus componentes.');
       return;
     }
     const esKilo = tipo === 'kilo';
@@ -93,12 +361,12 @@ const Catalogo = () => {
   const handleWhatsAppShare = () => {
     const grouped = {};
     products.filter(p => p.precioVenta > 0).forEach((p) => {
-      const cat = p.categoria?.nombre || 'Sin categoría';
+      const cat = p.categoria?.nombre || 'Sin categoria';
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(p);
     });
 
-    const lines = ['*Catálogo Poroto PetShop*', ''];
+    const lines = ['*Catalogo Poroto PetShop*', ''];
     Object.entries(grouped).forEach(([cat, items]) => {
       lines.push(`*${cat}*`);
       items.forEach((p) => {
@@ -111,7 +379,7 @@ const Catalogo = () => {
     });
 
     const url = window.location.origin + '/catalogo';
-    lines.push(`Ver catálogo completo: ${url}`);
+    lines.push(`Ver catalogo completo: ${url}`);
     const text = lines.join('%0A');
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
@@ -153,13 +421,31 @@ const Catalogo = () => {
         window.open(`https://wa.me/${ownerPhone}?text=${waText}`, '_blank');
       } else {
         navigator.clipboard.writeText(waLines.join('\n'));
-        alert('Mensaje copiado al portapapeles. Pegalo en WhatsApp del dueño.');
+        alert('Mensaje copiado al portapapeles. Pegalo en WhatsApp del dueno.');
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Error al enviar el pedido');
     } finally {
       setOrderLoading(false);
     }
+  };
+
+  const handleBannerCta = (action) => {
+    if (action === 'order') {
+      window.open(`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent('¡Hola! Quiero hacer un pedido en Poroto PetShop')}`, '_blank');
+    } else {
+      productsRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const goToSection = (id) => {
+    setSelectedCategory('all');
+    setSearchTerm('');
+    setTimeout(() => document.getElementById('sec-' + id)?.scrollIntoView({ behavior: 'smooth' }), 80);
+  };
+
+  const handleBannerError = (id) => {
+    setBannerErrors((prev) => ({ ...prev, [id]: true }));
   };
 
   const filtered = useMemo(() => {
@@ -171,45 +457,76 @@ const Catalogo = () => {
       const term = searchTerm.toLowerCase();
       result = result.filter(p =>
         p.nombre.toLowerCase().includes(term) ||
-        (p.sku && p.sku.toLowerCase().includes(term))
+        (p.sku && p.sku.toLowerCase().includes(term)) ||
+        (p.descripcion && p.descripcion.toLowerCase().includes(term))
       );
     }
     return result;
   }, [products, selectedCategory, searchTerm]);
 
+  const sections = useMemo(() => {
+    const groups = new Map();
+    filtered.forEach(p => {
+      const id = p.categoria?._id || 'sin-categoria';
+      if (!groups.has(id)) {
+        groups.set(id, { id, nombre: p.categoria?.nombre || 'Sin categoria', color: p.categoria?.color, items: [] });
+      }
+      groups.get(id).items.push(p);
+    });
+    return [...groups.values()];
+  }, [filtered]);
+
+  const featuredProducts = useMemo(() => {
+    return products
+      .filter(p => p.precioVenta > 0 && p.stock > 0 && p.imagen)
+      .slice(0, 4);
+  }, [products]);
+
+  const activeBanner = BANNERS[banner % BANNERS.length];
+
   return (
     <div className="min-h-screen bg-[#0f0f0f]">
 
+      {/* Franja superior */}
+      <div className="bg-emerald-700 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-center gap-2 text-xs font-medium">
+          <Truck size={14} />
+          <span>Envios a coordinar · Retiro en el local seguro</span>
+          <span className="hidden sm:inline text-emerald-200">|</span>
+          <span className="hidden sm:inline">{STORE.horario}</span>
+        </div>
+      </div>
+
       {/* Header */}
-      <header className="bg-[#1a1a1a] border-b border-[#2a2a2a] sticky top-0 z-40">
+      <header className="bg-[#1a1a1a]/95 backdrop-blur border-b border-[#2a2a2a] sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center">
-                <span className="text-white font-bold text-lg">P</span>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-600/20">
+                <PawPrint size={22} className="text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-white leading-tight">Poroto PetShop</h1>
-                <p className="text-xs text-neutral-500 leading-tight">Catálogo de productos</p>
+                <h1 className="text-lg font-bold text-white leading-tight">{STORE.nombre}</h1>
+                <p className="text-xs text-neutral-500 leading-tight">Catalogo online</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={handleWhatsAppShare}
                 disabled={products.length === 0}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-semibold transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#333] text-white text-sm font-semibold transition-colors hover:border-emerald-600/50 disabled:opacity-40"
               >
-                <MessageCircle size={16} />
+                <MessageCircle size={16} className="text-emerald-500" />
                 <span className="hidden sm:inline">Compartir</span>
               </button>
               <button
                 onClick={() => setShowCart(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#2a2a2a] hover:bg-[#333] text-white text-sm font-semibold transition-colors border border-[#333]"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-emerald-600/20"
               >
                 <ShoppingCart size={16} />
                 <span className="hidden sm:inline">Mi Pedido</span>
                 {cartCount > 0 && (
-                  <span className="ml-1 px-2 py-0.5 rounded-full bg-emerald-600 text-xs font-bold">
+                  <span className="ml-1 px-2 py-0.5 rounded-full bg-white/20 text-xs font-bold">
                     {cartCount}
                   </span>
                 )}
@@ -219,9 +536,103 @@ const Catalogo = () => {
         </div>
       </header>
 
-      {/* Search + Filters */}
-      <div className="bg-[#1a1a1a] border-b border-[#2a2a2a]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-3">
+      {/* ─── HERO: Carrusel de banners con imagen ─── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <div className="relative overflow-hidden rounded-2xl">
+          <div
+            className="flex transition-transform duration-700 ease-in-out"
+            style={{ transform: `translateX(-${banner * 100}%)` }}
+          >
+            {BANNERS.map((b) => (
+              <div
+                key={b.id}
+                className="min-w-full relative overflow-hidden h-[280px] sm:h-[340px] md:h-[400px]"
+              >
+                {/* Imagen de fondo o fallback gradient */}
+                {!bannerErrors[b.id] ? (
+                  <img
+                    src={b.imagen}
+                    alt={b.titulo}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    onError={() => handleBannerError(b.id)}
+                  />
+                ) : (
+                  <div className={`absolute inset-0 bg-gradient-to-br ${b.fallbackGradient}`} />
+                )}
+
+                {/* Overlay oscuro */}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent" />
+
+                {/* Contenido */}
+                <div className="relative h-full flex items-center">
+                  <div className="px-6 sm:px-10 md:px-14 max-w-xl">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider bg-white/15 text-white rounded-full px-3 py-1 mb-4 backdrop-blur-sm">
+                      <Sparkles size={12} /> {b.etiqueta}
+                    </span>
+                    <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white leading-tight mb-3 drop-shadow-lg">
+                      {b.titulo}
+                    </h2>
+                    <p className="text-white/90 text-sm sm:text-base mb-6 drop-shadow leading-relaxed">{b.sub}</p>
+                    <button
+                      onClick={() => handleBannerCta(b.action)}
+                      className="inline-flex items-center gap-2 bg-white text-neutral-900 font-bold px-6 py-3 rounded-xl hover:bg-neutral-100 transition-colors shadow-lg"
+                    >
+                      {b.cta}
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Flechas */}
+          <button
+            onClick={() => setBanner((b) => (b - 1 + BANNERS.length) % BANNERS.length)}
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <button
+            onClick={() => setBanner((b) => (b + 1) % BANNERS.length)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+          >
+            <ChevronRight size={20} />
+          </button>
+
+          {/* Puntos indicadores */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+            {BANNERS.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setBanner(i)}
+                className={`h-2 rounded-full transition-all ${i === banner ? 'w-7 bg-white' : 'w-2 bg-white/50 hover:bg-white/80'}`}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Barra de beneficios ─── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {BENEFITS.map((b, i) => (
+            <div key={i} className="flex items-center gap-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-600/10 flex items-center justify-center shrink-0">
+                <b.icon size={18} className="text-emerald-500" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-white truncate">{b.text}</p>
+                <p className="text-[10px] text-neutral-500 truncate">{b.sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ─── Filtros + Busqueda ─── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8" ref={productsRef}>
+        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-4 space-y-3 sticky top-[72px] z-30">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={18} />
             <input
@@ -261,16 +672,41 @@ const Catalogo = () => {
         </div>
       </div>
 
-      {/* Products Grid */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* ─── Productos destacados (solo cuando no hay filtro) ─── */}
+      {!searchTerm && selectedCategory === 'all' && featuredProducts.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
+          <div className="flex items-center gap-3 mb-5">
+            <Star size={20} className="text-amber-400" />
+            <h2 className="text-xl font-bold text-white">Destacados</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {featuredProducts.map(p => (
+              <ProductCard
+                key={p._id}
+                p={p}
+                cart={cart}
+                onAdd={addToCart}
+                onUpdate={updateCartQty}
+                onRemove={removeFromCart}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ─── Productos por categoria ─── */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 scroll-mt-32">
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] p-4 animate-pulse">
-                <div className="h-3 bg-[#222] rounded w-20 mb-3" />
-                <div className="h-5 bg-[#222] rounded w-3/4 mb-2" />
-                <div className="h-4 bg-[#222] rounded w-1/3 mb-4" />
-                <div className="h-8 bg-[#222] rounded" />
+              <div key={i} className="bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden animate-pulse">
+                <div className="h-44 bg-[#222]" />
+                <div className="p-4 space-y-3">
+                  <div className="h-3 bg-[#222] rounded w-20" />
+                  <div className="h-5 bg-[#222] rounded w-3/4" />
+                  <div className="h-4 bg-[#222] rounded w-1/3" />
+                  <div className="h-9 bg-[#222] rounded" />
+                </div>
               </div>
             ))}
           </div>
@@ -280,196 +716,153 @@ const Catalogo = () => {
             <p className="text-neutral-500">No se encontraron productos</p>
           </div>
         ) : (
-          <>
-            <p className="text-sm text-neutral-500 mb-4">
+          <div className="space-y-10">
+            <p className="text-sm text-neutral-500">
               {filtered.length} producto{filtered.length !== 1 ? 's' : ''}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filtered.map(p => {
-                const soldByKg = isKg(p);
-                const vendeSuelto = soldByKg || (p.precioKilo && p.precioKilo > 0);
-                const bagCart = cart.find((i) => i.producto === p._id && i.tipo === 'bag');
-                const kiloCart = cart.find((i) => i.producto === p._id && i.tipo === 'kilo');
-
-                const inCartControls = (item, label) => (
-                  <div className="flex items-center justify-between bg-[#222] rounded-lg px-3 py-2 mb-3 border border-emerald-600/30">
-                    <span className="text-xs text-emerald-400 font-medium">{label}</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => updateCartQty(p._id, -1, item.tipo)}
-                        className="w-7 h-7 rounded-md bg-[#1a1a1a] border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
-                      >
-                        <Minus size={12} />
-                      </button>
-                      <span className="text-sm font-bold text-white min-w-[40px] text-center">
-                        {item.cantidad} {item.tipo === 'kilo' ? 'kg' : 'un'}
-                      </span>
-                      <button
-                        onClick={() => updateCartQty(p._id, 1, item.tipo)}
-                        className="w-7 h-7 rounded-md bg-[#1a1a1a] border border-[#333] text-neutral-400 hover:text-white flex items-center justify-center transition-colors"
-                      >
-                        <Plus size={12} />
-                      </button>
-                      <button
-                        onClick={() => removeFromCart(p._id, item.tipo)}
-                        className="w-7 h-7 rounded-md text-neutral-500 hover:text-red-400 flex items-center justify-center transition-colors"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+            {sections.map((sec) => (
+              <section key={sec.id} id={'sec-' + sec.id} className="scroll-mt-36">
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="w-1.5 h-8 rounded-full" style={{ backgroundColor: sec.color || '#666' }} />
+                  <div>
+                    <h2 className="text-xl font-bold text-white">{sec.nombre}</h2>
+                    <p className="text-xs text-neutral-500">{sec.items.length} producto{sec.items.length !== 1 ? 's' : ''}</p>
                   </div>
-                );
-
-                const kiloButtons = () => (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => addToCart(p, 1, 'kilo')}
-                      disabled={p.stock <= 0}
-                      className="py-2 rounded-lg bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-sm font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      1 kg
-                    </button>
-                    <button
-                      onClick={() => addToCart(p, 2, 'kilo')}
-                      disabled={p.stock <= 0}
-                      className="py-2 rounded-lg bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-sm font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      2 kg
-                    </button>
-                  </div>
-                );
-
-                return (
-                  <div
-                    key={p._id}
-                    className="bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] p-4 flex flex-col hover:border-[#333] transition-colors"
-                  >
-                    {/* Category + Stock badge */}
-                    <div className="flex items-center justify-between mb-2">
-                      {p.categoria && (
-                        <span
-                          className="text-xs font-medium px-2 py-0.5 rounded"
-                          style={{
-                            backgroundColor: p.categoria.color ? `${p.categoria.color}20` : '#222',
-                            color: p.categoria.color || '#888',
-                          }}
-                        >
-                          {p.categoria.nombre}
-                        </span>
-                      )}
-                      <span className={`text-xs font-medium ${p.stock > 0 ? 'text-emerald-500' : 'text-red-400'}`}>
-                        {p.stock > 0 ? 'En stock' : 'Sin stock'}
-                      </span>
-                    </div>
-
-                    {/* Product name - full */}
-                    <h3 className="text-sm font-semibold text-white leading-snug mb-1">
-                      {p.nombre}
-                    </h3>
-
-                    {soldByKg ? (
-                      <>
-                        {/* Precio por kilo */}
-                        <p className="text-lg font-bold text-white mb-3">
-                          {formatCurrency(p.precioVenta)}
-                          <span className="text-xs font-normal text-neutral-500 ml-1">/kg</span>
-                        </p>
-                        {p.stock > 0 && !kiloCart && (
-                          <div className="mb-3">{kiloButtons()}</div>
-                        )}
-                        {kiloCart && inCartControls(kiloCart, 'En tu pedido')}
-                      </>
-                    ) : (
-                      <>
-                        {/* Precio bolsa */}
-                        <p className="text-lg font-bold text-white mb-3">
-                          {formatCurrency(p.precioVenta)}
-                          {p.kilosPorBolsa && (
-                            <span className="text-xs font-normal text-neutral-500 ml-1">bolsa · {p.kilosPorBolsa}kg</span>
-                          )}
-                        </p>
-
-                        {vendeSuelto ? (
-                          /* Fraccionable: bolsa + comprar suelto */
-                          <div className="space-y-3 mb-3">
-                            {bagCart ? (
-                              inCartControls(bagCart, 'Bolsa en pedido')
-                            ) : p.stock > 0 && !p.esCombo && (
-                              <button
-                                onClick={() => addToCart(p, 1, 'bag')}
-                                className="w-full py-2 rounded-lg border border-[#333] text-neutral-300 text-sm font-medium hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors"
-                              >
-                                Agregar bolsa
-                              </button>
-                            )}
-
-                            <div className="border-t border-[#2a2a2a] pt-3">
-                              <p className="text-xs text-neutral-500 mb-1.5">
-                                ¿Comprás suelto? <span className="text-neutral-300 font-medium">{formatCurrency(p.precioKilo)}/kg</span>
-                              </p>
-                              {kiloCart ? (
-                                inCartControls(kiloCart, 'Suelto en pedido')
-                              ) : p.stock > 0 ? (
-                                kiloButtons()
-                              ) : (
-                                <p className="text-xs text-neutral-600">Agotado</p>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          /* Normal: solo bolsa / unidad */
-                          <>
-                            {p.stock > 0 && !bagCart && !p.esCombo && (
-                              <button
-                                onClick={() => addToCart(p, 1, 'bag')}
-                                className="w-full py-2 rounded-lg border border-[#333] text-neutral-300 text-sm font-medium hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors mb-3"
-                              >
-                                Agregar
-                              </button>
-                            )}
-                            {p.esCombo && p.comboVendible === false && !bagCart && (
-                              <button
-                                disabled
-                                className="w-full py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium cursor-not-allowed mb-3"
-                                title="Combo sin stock en componentes"
-                              >
-                                ⚠ Sin stock (combo)
-                              </button>
-                            )}
-                            {bagCart && inCartControls(bagCart, 'En tu pedido')}
-                          </>
-                        )}
-                      </>
-                    )}
-
-                    {/* Sold out */}
-                    {p.stock <= 0 && !bagCart && !kiloCart && (
-                      <div className="py-2 text-center mb-3">
-                        <span className="text-xs text-neutral-500 font-medium">Agotado</span>
-                      </div>
-                    )}
-
-                    {/* Unit label */}
-                    {soldByKg && (
-                      <p className="text-xs text-neutral-600 mt-auto">Venta por kilo</p>
-                    )}
-                    {p.unidadMedida && p.unidadMedida !== 'unidad' && p.unidadMedida !== 'kg' && (
-                      <p className="text-xs text-neutral-600 mt-auto">Venta por {p.unidadMedida}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {sec.items.map(p => (
+                    <ProductCard
+                      key={p._id}
+                      p={p}
+                      cart={cart}
+                      onAdd={addToCart}
+                      onUpdate={updateCartQty}
+                      onRemove={removeFromCart}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#2a2a2a] bg-[#1a1a1a] mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center">
-          <p className="text-xs text-neutral-600">
-            &copy; {new Date().getFullYear()} Poroto PetShop — Precios sujetos a cambios sin previo aviso
-          </p>
+      {/* ─── Banner CTA final ─── */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="text-center md:text-left">
+            <h3 className="text-2xl font-extrabold text-white mb-1">¿No encontras lo que buscas?</h3>
+            <p className="text-white/85 text-sm">Consulta por otros productos, tamannos o marcas. Te lo conseguimos.</p>
+          </div>
+          <a
+            href={`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent('¡Hola! Estaba viendo el catalogo y queria consultar por un producto')}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 bg-white text-emerald-700 font-bold px-6 py-3 rounded-xl shadow-lg hover:bg-neutral-100 transition-colors shrink-0"
+          >
+            <MessageCircle size={18} />
+            Consultar por WhatsApp
+          </a>
+        </div>
+      </section>
+
+      {/* ─── Footer ─── */}
+      <footer className="border-t border-[#2a2a2a] bg-[#161616] mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
+            {/* Marca + redes */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                  <PawPrint size={18} className="text-white" />
+                </div>
+                <h3 className="text-lg font-bold text-white">{STORE.nombre}</h3>
+              </div>
+              <p className="text-xs text-neutral-500 leading-relaxed mb-5">{STORE.descripcion}</p>
+              <div className="flex gap-3">
+                <a href={STORE.instagram} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-emerald-600/20 border border-[#333] hover:border-emerald-600/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="Instagram">
+                  <InstagramIcon size={18} />
+                </a>
+                <a href={STORE.facebook} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-emerald-600/20 border border-[#333] hover:border-emerald-600/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="Facebook">
+                  <FacebookIcon size={18} />
+                </a>
+                <a href={`https://wa.me/${STORE.whatsapp}`} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-emerald-600/20 border border-[#333] hover:border-emerald-600/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="WhatsApp">
+                  <MessageCircle size={18} />
+                </a>
+              </div>
+            </div>
+
+            {/* Contacto */}
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Contacto</h4>
+              <ul className="space-y-3 text-sm text-neutral-400">
+                <li className="flex items-start gap-3">
+                  <MapPin size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <span>{STORE.ubicacion}</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Phone size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <a href={`tel:${STORE.telefono.replace(/\s/g, '')}`} className="hover:text-white transition-colors">{STORE.telefono}</a>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Mail size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <a href={`mailto:${STORE.email}`} className="hover:text-white transition-colors">{STORE.email}</a>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Clock size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <span>{STORE.horario}</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Categorias */}
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Categorias</h4>
+              <ul className="space-y-2.5 text-sm">
+                {categories.length > 0 ? (
+                  categories.map((cat) => (
+                    <li key={cat._id}>
+                      <button
+                        onClick={() => goToSection(cat._id)}
+                        className="text-neutral-400 hover:text-emerald-400 transition-colors flex items-center gap-2"
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color || '#666' }} />
+                        {cat.nombre}
+                      </button>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-neutral-600 text-xs">Se cargan al tener productos</li>
+                )}
+              </ul>
+            </div>
+
+            {/* Pedidos */}
+            <div>
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Pedidos</h4>
+              <p className="text-xs text-neutral-500 mb-4 leading-relaxed">
+                Arma tu pedido en el catalogo y envialo por WhatsApp. Te confirmamos disponibilidad y formas de pago.
+              </p>
+              <a
+                href={`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent('¡Hola! Quiero hacer un pedido en Poroto PetShop')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+              >
+                <MessageCircle size={16} />
+                Escribinos por WhatsApp
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-[#242424]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-neutral-600">
+            <p>&copy; {new Date().getFullYear()} {STORE.nombre} — Precios sujetos a cambios sin previo aviso</p>
+            <p className="flex items-center gap-1">
+              Hecho con <span className="text-emerald-500">♥</span> para tu mascota
+            </p>
+          </div>
         </div>
       </footer>
 
@@ -487,7 +880,7 @@ const Catalogo = () => {
               {cart.length === 0 ? (
                 <div className="text-center py-16">
                   <ShoppingCart size={36} className="mx-auto text-neutral-600 mb-3" />
-                  <p className="text-sm text-neutral-500">Tu pedido está vacío</p>
+                  <p className="text-sm text-neutral-500">Tu pedido esta vacio</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -570,12 +963,12 @@ const Catalogo = () => {
                   type="text"
                   value={orderData.nombre}
                   onChange={(e) => setOrderData({ ...orderData, nombre: e.target.value })}
-                  placeholder="Juan Pérez"
+                  placeholder="Juan Perez"
                   className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-600 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-neutral-400 mb-1">Teléfono (WhatsApp) *</label>
+                <label className="block text-xs font-semibold text-neutral-400 mb-1">Telefono (WhatsApp) *</label>
                 <input
                   required
                   type="tel"
@@ -584,7 +977,7 @@ const Catalogo = () => {
                   placeholder="11 5555 1234"
                   className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-600 outline-none"
                 />
-                <p className="text-[11px] text-neutral-600 mt-1">Si ya sos cliente, se vincula automáticamente</p>
+                <p className="text-[11px] text-neutral-600 mt-1">Si ya sos cliente, se vincula automaticamente</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-400 mb-1">Notas (opcional)</label>
@@ -592,7 +985,7 @@ const Catalogo = () => {
                   value={orderData.notas}
                   onChange={(e) => setOrderData({ ...orderData, notas: e.target.value })}
                   rows={2}
-                  placeholder="Ej: Entregar después de las 18hs..."
+                  placeholder="Ej: Entregar despues de las 18hs..."
                   className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-600 outline-none resize-none"
                 />
               </div>
@@ -637,14 +1030,14 @@ const Catalogo = () => {
             </div>
             <h3 className="text-lg font-bold text-white mb-1">¡Pedido Enviado!</h3>
             <p className="text-sm text-neutral-400 mb-1">
-              Número: <span className="font-mono font-bold text-white">{orderSuccess.numero}</span>
+              Numero: <span className="font-mono font-bold text-white">{orderSuccess.numero}</span>
             </p>
             <p className="text-sm text-neutral-400 mb-4">
               Total: <span className="font-bold text-white">{formatCurrency(orderSuccess.total)}</span>
             </p>
             {orderSuccess.clienteAsignado && (
               <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 mb-4">
-                Se vinculó a tu cuenta de cliente registrada
+                Se vinculo a tu cuenta de cliente registrada
               </p>
             )}
             <button

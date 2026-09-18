@@ -11,8 +11,9 @@ import {
 import toast from 'react-hot-toast';
 
 const FIXED_COSTS_MONTHLY = 1000000;
-const META_FACTURACION_MENSUAL = 4000000;
-const META_FACTURACION_DIARIA = 40000;
+const META_FACTURACION_MENSUAL_DEFECTO = 4000000;
+const META_FACTURACION_DIARIA_DEFECTO = 40000;
+const META_GANANCIA_DIARIA_DEFECTO = 30000;
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
@@ -97,6 +98,9 @@ const Dashboard = () => {
   const [cashClose, setCashClose] = useState(null);
   const [loadingCashClose, setLoadingCashClose] = useState(false);
   const [dashboardExtra, setDashboardExtra] = useState(null);
+  const [metaDiaria, setMetaDiaria] = useState(META_FACTURACION_DIARIA_DEFECTO);
+  const [metaMensual, setMetaMensual] = useState(META_FACTURACION_MENSUAL_DEFECTO);
+  const [metaGananciaDiaria, setMetaGananciaDiaria] = useState(META_GANANCIA_DIARIA_DEFECTO);
 
   const [gastoMonto, setGastoMonto] = useState('');
   const [gastoMotivo, setGastoMotivo] = useState('');
@@ -139,6 +143,19 @@ const Dashboard = () => {
       console.error('Error cargando dashboard-extra', error);
     }
   };
+
+  useEffect(() => {
+    api.get('/system-config')
+      .then(res => {
+        const c = res.data?.config;
+        if (c) {
+          setMetaDiaria(c.metaFacturacionDiaria || META_FACTURACION_DIARIA_DEFECTO);
+          setMetaMensual(c.metaFacturacionMensual || META_FACTURACION_MENSUAL_DEFECTO);
+          setMetaGananciaDiaria(c.metaGananciaDiaria || META_GANANCIA_DIARIA_DEFECTO);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -224,8 +241,8 @@ const Dashboard = () => {
   const pctFacturacion = facturacionMesAnterior > 0 ? (facturacionActual / facturacionMesAnterior) * 100 : 0;
   const pctGastosFijos = FIXED_COSTS_MONTHLY > 0 ? (facturacionActual / FIXED_COSTS_MONTHLY) * 100 : 0;
 
-  const pctMetaFacturacion = META_FACTURACION_MENSUAL > 0 ? (facturacionActual / META_FACTURACION_MENSUAL) * 100 : 0;
-  const faltaMeta = Math.max(0, META_FACTURACION_MENSUAL - facturacionActual);
+  const pctMetaFacturacion = metaMensual > 0 ? (facturacionActual / metaMensual) * 100 : 0;
+  const faltaMeta = Math.max(0, metaMensual - facturacionActual);
   const gastosFijosCubiertos = facturacionActual >= FIXED_COSTS_MONTHLY;
   const faltaGastosFijos = Math.max(0, FIXED_COSTS_MONTHLY - facturacionActual);
   const histFacturacion = globalStats && globalStats.ventas ? globalStats.ventas.facturacionTotal : 0;
@@ -235,6 +252,7 @@ const Dashboard = () => {
   const gastosHoy = summary ? summary.gastosHoy || 0 : 0;
   const facturacionHoy = summary ? summary.facturacionHoy || 0 : 0;
   const facturacionNetaHoy = summary ? summary.facturacionNetaHoy || 0 : 0;
+  const gananciaHoy = summary ? summary.gananciaHoy || 0 : 0;
 
   const calcMontoNum = parseFloat(String(calcMonto).replace(/[^\d.]/g, '')) || 0;
   const calcPctNum = parseFloat(String(calcPct).replace(/[^\d.]/g, '')) || 0;
@@ -295,10 +313,11 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Barra de Progreso Diaria */}
+      {/* Barras de Progreso Diarias */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {(() => {
-        const pctDiaria = META_FACTURACION_DIARIA > 0 ? (facturacionHoy / META_FACTURACION_DIARIA) * 100 : 0;
-        const faltaDiaria = Math.max(0, META_FACTURACION_DIARIA - facturacionHoy);
+        const pctDiaria = metaDiaria > 0 ? (facturacionHoy / metaDiaria) * 100 : 0;
+        const faltaDiaria = Math.max(0, metaDiaria - facturacionHoy);
         const supero = pctDiaria >= 100;
         return (
           <div className={'rounded-2xl border p-5 transition-all duration-300 ' + (supero ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-surface border-stone-800/80')}>
@@ -309,7 +328,7 @@ const Dashboard = () => {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-textLight uppercase tracking-wider">Meta Diaria</p>
-                  <p className="text-[10px] text-textMuted">{formatCurrency(META_FACTURACION_DIARIA)} objetivo de facturación</p>
+                  <p className="text-[10px] text-textMuted">{formatCurrency(metaDiaria)} objetivo de facturación</p>
                 </div>
               </div>
               <div className="text-right">
@@ -334,11 +353,56 @@ const Dashboard = () => {
               <span className={'text-xs font-extrabold ' + (supero ? 'text-emerald-400' : 'text-primary')}>
                 {pctDiaria.toFixed(0)}%
               </span>
-              <span className="text-[10px] text-textMuted">{formatCurrency(META_FACTURACION_DIARIA)}</span>
+              <span className="text-[10px] text-textMuted">{formatCurrency(metaDiaria)}</span>
             </div>
           </div>
         );
       })()}
+
+      {(() => {
+        const pctGanancia = metaGananciaDiaria > 0 ? (gananciaHoy / metaGananciaDiaria) * 100 : 0;
+        const faltaGanancia = Math.max(0, metaGananciaDiaria - gananciaHoy);
+        const superoGanancia = pctGanancia >= 100;
+        return (
+          <div className={'rounded-2xl border p-5 transition-all duration-300 ' + (superoGanancia ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-surface border-stone-800/80')}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={'w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ' + (superoGanancia ? 'from-emerald-500 to-emerald-700' : 'from-violet-500 to-purple-700')}>
+                  <Wallet size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-textLight uppercase tracking-wider">Meta de Ganancia Diaria</p>
+                  <p className="text-[10px] text-textMuted">{formatCurrency(metaGananciaDiaria)} objetivo de ganancia</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-extrabold text-textLight">{formatCurrency(gananciaHoy)}</p>
+                <p className={'text-xs font-bold ' + (superoGanancia ? 'text-emerald-400' : faltaGanancia > 0 ? 'text-amber-400' : 'text-textMuted')}>
+                  {superoGanancia ? '¡Superaste la meta!' : 'Falta ' + formatCurrency(faltaGanancia)}
+                </p>
+              </div>
+            </div>
+            <div className="h-4 bg-stone-800 rounded-full overflow-hidden">
+              <div
+                className={'h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2 ' + (superoGanancia ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' : pctGanancia >= 70 ? 'bg-gradient-to-r from-violet-500 to-purple-400' : 'bg-gradient-to-r from-red-500 to-orange-400')}
+                style={{ width: Math.min(pctGanancia, 100) + '%' }}
+              >
+                {pctGanancia >= 15 && (
+                  <span className="text-[10px] font-extrabold text-white drop-shadow-md">{pctGanancia.toFixed(0)}%</span>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-[10px] text-textMuted">$0</span>
+              <span className={'text-xs font-extrabold ' + (superoGanancia ? 'text-emerald-400' : 'text-primary')}>
+                {pctGanancia.toFixed(0)}%
+              </span>
+              <span className="text-[10px] text-textMuted">{formatCurrency(metaGananciaDiaria)}</span>
+            </div>
+          </div>
+        );
+      })()}
+      </div>
 
       {/* Row 1: Today's stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -582,7 +646,7 @@ const Dashboard = () => {
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-bold text-textMuted uppercase tracking-wider">Meta Facturacion del Mes ($4M)</span>
-              <span className="text-[10px] text-textMuted">{formatCurrency(facturacionActual)} / {formatCurrency(META_FACTURACION_MENSUAL)}</span>
+              <span className="text-[10px] text-textMuted">{formatCurrency(facturacionActual)} / {formatCurrency(metaMensual)}</span>
             </div>
             <div className="h-2 rounded-full bg-stone-800/70 overflow-hidden">
               <div

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import api from '../api/axios';
 import { useDebounce } from '../hooks/useDebounce';
 import { CartContext } from '../context/CartContext';
@@ -7,9 +7,78 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+const formatCurrency = (val) => arsFormat.format(val);
+
+const ProductCard = React.memo(function ProductCard({ p, qty, onOpenCustom, onAdd, onQuickAdd }) {
+   const sinStock = p.stock <= 0;
+
+   return (
+      <div
+         onClick={() => {
+            if (p.esGenerico) {
+               onOpenCustom(p, 'generic');
+               return;
+            }
+            if (p.esBolsaAlimento) {
+               onOpenCustom(p, 'food');
+               return;
+            }
+            onAdd(p);
+         }}
+         className={`relative bg-surface p-3 rounded-xl border flex flex-col cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-lg ${sinStock ? 'border-red-500/40 hover:border-red-400' : 'border-stone-800 hover:border-primary/50'}`}
+      >
+         {sinStock && (
+            <button
+               onClick={(e) => { e.stopPropagation(); onQuickAdd(p); }}
+               className="absolute top-2 right-2 w-6 h-6 z-10 flex items-center justify-center rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-white transition-colors"
+               title="Sumar stock +1"
+            >
+               <PackagePlus size={13} />
+            </button>
+         )}
+         <h4 className={`font-semibold text-textLight text-sm leading-tight line-clamp-2 ${sinStock ? 'pr-6' : ''}`}>{p.nombre}</h4>
+         <p className={`text-[10px] font-medium mt-1 ${sinStock ? 'text-red-400' : 'text-primary'}`}>
+            {p.esBolsaAlimento ? `Bolsa ${p.kilosPorBolsa} kg` : 'Producto'}{sinStock ? ' · Sin stock' : ''}
+         </p>
+         <div className="flex justify-between items-end mt-auto pt-2">
+            <p className="font-bold text-base text-primary">{formatCurrency(p.precioVenta)}</p>
+            {qty > 0 && (
+               <span className="text-[10px] font-bold text-primary bg-primary/15 px-1.5 py-0.5 rounded">{qty} en carrito</span>
+            )}
+         </div>
+      </div>
+   );
+});
+
+const PromoCard = React.memo(function PromoCard({ promo, qty, onAdd }) {
+   return (
+      <div
+         onClick={() => onAdd(promo)}
+         className="bg-surface p-3 rounded-xl border border-primary/40 cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-lg hover:border-primary"
+      >
+         <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">Promo</span>
+            <span className="text-[10px] text-textMuted font-mono">{promo.numero}</span>
+         </div>
+         <h4 className="font-semibold text-textLight text-sm leading-tight mb-1 line-clamp-2">{promo.nombre}</h4>
+         <p className="text-[10px] text-textMuted mb-1">{promo.items?.length} productos · {promo.descuento}% OFF</p>
+         <div className="flex justify-between items-end mt-1">
+            <p className="font-bold text-base text-primary">{formatCurrency(promo.precioFinal)}</p>
+            <span className="text-[10px] font-bold text-emerald-400">
+               {formatCurrency(promo.ganancia)} gan.
+            </span>
+         </div>
+         {qty > 0 && (
+            <p className="text-[10px] text-primary mt-1 font-bold">{qty} en carrito</p>
+         )}
+      </div>
+   );
+});
+
 const POS = () => {
    const {
-      cartItems, addToCart, updateQuantity, removeFromCart, clearCart,
+      cartItems, addToCart, updateQuantity, clearCart,
       discount, setDiscount, cartSubtotal, cartTotal
    } = useContext(CartContext);
 
@@ -63,10 +132,6 @@ const POS = () => {
    }, []);
 
    useEffect(() => {
-      fetchProducts();
-   }, [debouncedSearch, activeCategory]);
-
-   useEffect(() => {
       if (!showCustomerModal) return;
       setCustomersLoading(true);
       api.get('/customers?all=true')
@@ -87,7 +152,7 @@ const POS = () => {
       }
    };
 
-   const fetchProducts = async () => {
+   const fetchProducts = useCallback(async () => {
       setLoading(true);
       try {
          let url = '/products?sort=masVendidos&';
@@ -101,9 +166,13 @@ const POS = () => {
       } finally {
          setLoading(false);
       }
-   };
+   }, [debouncedSearch, activeCategory]);
 
-   const quickAddStock = async (p) => {
+   useEffect(() => {
+      fetchProducts();
+   }, [fetchProducts]);
+
+   const quickAddStock = useCallback(async (p) => {
       try {
          await api.patch(`/products/${p._id}/stock`, {
             tipo: 'entrada',
@@ -115,13 +184,52 @@ const POS = () => {
       } catch (error) {
          toast.error(error.response?.data?.message || 'Error al sumar stock');
       }
-   };
+   }, [fetchProducts]);
 
    const handleMontoChange = (e) => {
       setMontoRecibido(e.target.value);
    };
 
    const vueltoCalculado = montoRecibido ? (parseFloat(montoRecibido) - cartTotal) : 0;
+
+   const productCartMap = useMemo(() => {
+      const map = new Map();
+      cartItems.forEach((i) => {
+         if (!i.promocion && i.producto) map.set(i.producto, (map.get(i.producto) || 0) + i.cantidad);
+      });
+      return map;
+   }, [cartItems]);
+
+   const promoCartMap = useMemo(() => {
+      const map = new Map();
+      cartItems.forEach((i) => {
+         if (i.promocion) map.set(i.promocion, (map.get(i.promocion) || 0) + i.cantidad);
+      });
+      return map;
+   }, [cartItems]);
+
+   const openCustomProduct = useCallback((p, type) => {
+      if (type === 'generic') {
+         setActiveCustomProduct({ product: p, type: 'generic' });
+         setCustomPriceInput('');
+         return;
+      }
+      setActiveCustomProduct({ product: p, type: 'food' });
+      setFoodSaleType('kilos');
+      setFoodInputValue('');
+      setModalMargin((p.precioKilo && p.precioKilo > 0) ? 0 : (p.margenSuelto || 42));
+   }, []);
+
+   const addPromo = useCallback((promo) => {
+      const added = addToCart(promo, {
+         esPromocion: true,
+         promocion: promo._id,
+         nombre: promo.nombre,
+         precioVenta: promo.precioFinal,
+         precioCompra: promo.subtotalCosto,
+      });
+      if (added) toast.success('Promoción agregada al carrito');
+   }, [addToCart]);
 
    const handleCheckout = async () => {
       if (cartItems.length === 0) return toast.error('El carrito está vacío');
@@ -184,16 +292,9 @@ const POS = () => {
          setBudgetName('');
          setBudgetPhone('');
          setBudgetNotas('');
-      } catch (error) {
+      } catch {
          toast.error('Error al crear presupuesto');
       }
-   };
-
-const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
-
-   const getPricePerKg = (p, margin) => {
-      const base = (p.precioKilo && p.precioKilo > 0) ? Number(p.precioKilo) : (p.precioVenta / p.kilosPorBolsa);
-      return base * (1 + ((margin ?? 0) / 100));
    };
 
    const createQuickCustomer = async () => {
@@ -209,12 +310,17 @@ const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currenc
          setNewCustomerPhone('');
          setShowCustomerModal(false);
          toast.success('Cliente creado y asignado a la venta');
-      } catch (error) {
+      } catch {
          toast.error('Error al crear cliente');
       }
    };
 
 const fmtMoneda = formatCurrency;
+
+   const getPricePerKg = (p, margin) => {
+      const base = (p.precioKilo && p.precioKilo > 0) ? Number(p.precioKilo) : (p.precioVenta / p.kilosPorBolsa);
+      return base * (1 + ((margin ?? 0) / 100));
+   };
 
    const cartPanel = (onMobileClose) => (
       <>
@@ -483,98 +589,27 @@ const fmtMoneda = formatCurrency;
                      <div className="col-span-full text-center py-10 text-textMuted text-sm">
                         No hay promociones activas.
                      </div>
-                  ) : (
-                     promotions.map((promo) => {
-                        const itemInCart = cartItems.find(i => i.promocion === promo._id);
-                        const currentQty = itemInCart ? itemInCart.cantidad : 0;
-
-                        return (
-                           <div
-                              key={promo._id}
-                              onClick={() => {
-                                 const added = addToCart(promo, {
-                                    esPromocion: true,
-                                    promocion: promo._id,
-                                    nombre: promo.nombre,
-                                    precioVenta: promo.precioFinal,
-                                    precioCompra: promo.subtotalCosto,
-                                 });
-                                 if (added) toast.success('Promoción agregada al carrito');
-                              }}
-                              className="bg-surface p-3 rounded-xl border border-primary/40 cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-lg hover:border-primary"
-                           >
-                              <div className="flex items-center justify-between mb-1">
-                                 <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary">Promo</span>
-                                 <span className="text-[10px] text-textMuted font-mono">{promo.numero}</span>
-                              </div>
-                              <h4 className="font-semibold text-textLight text-sm leading-tight mb-1 line-clamp-2">{promo.nombre}</h4>
-                              <p className="text-[10px] text-textMuted mb-1">{promo.items?.length} productos · {promo.descuento}% OFF</p>
-                              <div className="flex justify-between items-end mt-1">
-                                 <p className="font-bold text-base text-primary">{formatCurrency(promo.precioFinal)}</p>
-                                 <span className="text-[10px] font-bold text-emerald-400">
-                                    {formatCurrency(promo.ganancia)} gan.
-                                 </span>
-                              </div>
-                              {currentQty > 0 && (
-                                 <p className="text-[10px] text-primary mt-1 font-bold">{currentQty} en carrito</p>
-                              )}
-                           </div>
-                        );
-                     })
+) : (
+                     promotions.map((promo) => (
+                        <PromoCard key={promo._id} promo={promo} qty={promoCartMap.get(promo._id) || 0} onAdd={addPromo} />
+                     ))
                   )
                ) : products.length === 0 ? (
                   <div className="col-span-full text-center py-10 text-textMuted text-sm">
                      No se encontraron productos.
                   </div>
                ) : (
-products.map((p) => {
-                     const itemInCart = cartItems.find(i => i.producto === p._id);
-                     const currentQty = itemInCart ? itemInCart.cantidad : 0;
-                     const sinStock = p.stock <= 0;
-
-                     return (
-                        <div
+                     products.map((p) => (
+                        <ProductCard
                            key={p._id}
-                           onClick={() => {
-                              if (p.esGenerico) {
-                                 setActiveCustomProduct({ product: p, type: 'generic' });
-                                 setCustomPriceInput('');
-                                 return;
-                              }
-                              if (p.esBolsaAlimento) {
-                                 setActiveCustomProduct({ product: p, type: 'food' });
-                                 setFoodSaleType('kilos');
-                                 setFoodInputValue('');
-                                 setModalMargin((p.precioKilo && p.precioKilo > 0) ? 0 : (p.margenSuelto || 42));
-                                 return;
-                              }
-                              addToCart(p);
-                           }}
-                           className={`relative bg-surface p-3 rounded-xl border flex flex-col cursor-pointer transition-transform hover:-translate-y-0.5 hover:shadow-lg ${sinStock ? 'border-red-500/40 hover:border-red-400' : 'border-stone-800 hover:border-primary/50'}`}
-                        >
-                           {sinStock && (
-                              <button
-                                 onClick={(e) => { e.stopPropagation(); quickAddStock(p); }}
-                                 className="absolute top-2 right-2 w-6 h-6 z-10 flex items-center justify-center rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-400 hover:bg-amber-500 hover:text-white transition-colors"
-                                 title="Sumar stock +1"
-                              >
-                                 <PackagePlus size={13} />
-                              </button>
-                           )}
-                           <h4 className={`font-semibold text-textLight text-sm leading-tight line-clamp-2 ${sinStock ? 'pr-6' : ''}`}>{p.nombre}</h4>
-                           <p className={`text-[10px] font-medium mt-1 ${sinStock ? 'text-red-400' : 'text-primary'}`}>
-                              {p.esBolsaAlimento ? `Bolsa ${p.kilosPorBolsa} kg` : 'Producto'}{sinStock ? ' · Sin stock' : ''}
-                           </p>
-                           <div className="flex justify-between items-end mt-auto pt-2">
-                              <p className="font-bold text-base text-primary">{formatCurrency(p.precioVenta)}</p>
-                              {currentQty > 0 && (
-                                 <span className="text-[10px] font-bold text-primary bg-primary/15 px-1.5 py-0.5 rounded">{currentQty} en carrito</span>
-                              )}
-                           </div>
-                        </div>
-                     );
-                  })
-               )}
+                           p={p}
+                           qty={productCartMap.get(p._id) || 0}
+                           onOpenCustom={openCustomProduct}
+                           onAdd={addToCart}
+                           onQuickAdd={quickAddStock}
+                        />
+                     ))
+                  )}
             </div>
          </div>
 
