@@ -11,7 +11,7 @@ const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 
 const formatCurrency = (val) => arsFormat.format(val);
 
 const ProductCard = React.memo(function ProductCard({ p, qty, onOpenCustom, onAdd, onQuickAdd }) {
-   const sinStock = p.stock <= 0;
+   const sinStock = (Number(p.stock) || 0) <= 0 && !((Number(p.gramosBolsaAbierta) || 0) > 0);
 
    return (
       <div

@@ -33,7 +33,9 @@ import {
   PawPrint,
   Clock,
   Bot,
-  Settings
+  MessageSquare,
+  Settings,
+  Banknote
 } from 'lucide-react';
 
 const UPDATES = [
@@ -208,6 +210,7 @@ const buildMenuGroups = (isAdmin) => {
           { name: 'Proveedores', path: '/proveedores', icon: Building2 },
           { name: 'Órdenes de Compra', path: '/ordenes-compra', icon: ShoppingCart },
           { name: 'Gastos', path: '/gastos', icon: Receipt },
+          { name: 'Gastos Fijos', path: '/gastos-fijos', icon: Banknote },
           { name: 'Calendario', path: '/calendario', icon: Calendar },
           { name: 'Afiliados', path: '/afiliados', icon: Award },
         ],
@@ -223,6 +226,7 @@ const buildMenuGroups = (isAdmin) => {
     {
       title: 'IA',
       items: [
+        { name: 'Preguntale a la IA', path: '/preguntar-ia', icon: MessageSquare },
         { name: 'Centro de IA', path: '/ai-hub', icon: Bot },
       ],
     },

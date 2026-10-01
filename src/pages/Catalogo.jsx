@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import api from '../api/axios';
 import {
   Search, Package, MessageCircle, Plus, Minus, Trash2, X, ShoppingCart,
-  CheckCircle2, Loader, MapPin, Phone, Mail, Clock, ChevronLeft, ChevronRight,
+  CheckCircle2, Loader, MapPin, Phone, Mail, Clock, ChevronDown, ChevronLeft, ChevronRight,
   PawPrint, Truck, ArrowRight, Sparkles, Heart, ShieldCheck, Store, Star
 } from 'lucide-react';
 import Chatbot from '../components/Chatbot';
@@ -16,7 +16,7 @@ const STORE = {
   descripcion: 'Alimentos premium, accesorios, juguetes y mas. Elegi online, retira en el local o coordina el envio.',
   ubicacion: 'Av. Siempre Viva 742, Buenos Aires, Argentina',
   telefono: '+54 11 5555-1234',
-  whatsapp: import.meta.env.VITE_OWNER_WHATSAPP || '5491155551234',
+  whatsapp: import.meta.env.VITE_OWNER_WHATSAPP || '5491162589131',
   email: 'info@porotopetshop.com',
   horario: 'Lunes a Sabado · 9:00 a 20:00 hs',
   instagram: 'https://instagram.com/porotopetshop',
@@ -27,7 +27,7 @@ const BANNERS = [
   {
     id: 'b1',
     imagen: '/banners/banner1.jpg',
-    fallbackGradient: 'from-emerald-600 via-emerald-500 to-teal-600',
+    fallbackGradient: 'from-orange-400 via-orange-500 to-amber-500',
     etiqueta: 'Nueva temporada',
     titulo: 'Todo para tu mascota',
     sub: 'Alimentos premium, accesorios y juguetes. Elegi online y pasalo a buscar o pedi el envio.',
@@ -69,15 +69,15 @@ const FacebookIcon = ({ size = 18, ...props }) => (
 );
 
 /* ─── ProductCard ─── */
-const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove }) => {
+const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove, lista = false }) => {
   const soldByKg = isKg(p);
   const vendeSuelto = soldByKg || (p.precioKilo && p.precioKilo > 0);
   const bagCart = cart.find((i) => i.producto === p._id && i.tipo === 'bag');
   const kiloCart = cart.find((i) => i.producto === p._id && i.tipo === 'kilo');
 
   const inCartControls = (item, label) => (
-    <div className="flex items-center justify-between bg-emerald-900/20 rounded-lg px-3 py-2 border border-emerald-600/30">
-      <span className="text-xs text-emerald-400 font-medium">{label}</span>
+    <div className="flex items-center justify-between bg-orange-900/30 rounded-lg px-3 py-2 border border-orange-500/30">
+      <span className="text-xs text-orange-400 font-medium">{label}</span>
       <div className="flex items-center gap-2">
         <button
           onClick={() => onUpdate(p._id, -1, item.tipo)}
@@ -109,22 +109,131 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove }) => {
       <button
         onClick={() => onAdd(p, 1, 'kilo')}
         disabled={p.stock <= 0}
-        className="py-2 rounded-lg bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-sm font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="py-2 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 text-sm font-bold hover:bg-orange-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         1 kg
       </button>
       <button
         onClick={() => onAdd(p, 2, 'kilo')}
         disabled={p.stock <= 0}
-        className="py-2 rounded-lg bg-emerald-600/10 border border-emerald-600/30 text-emerald-400 text-sm font-bold hover:bg-emerald-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        className="py-2 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 text-sm font-bold hover:bg-orange-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
         2 kg
       </button>
     </div>
   );
 
+  if (lista) {
+    const btn = 'inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors';
+    const btnAdd = `${btn} bg-orange-500 hover:bg-orange-400 text-white`;
+    const btnSec = `${btn} bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed`;
+
+    const precioLinea = (valor, sufijo) => (
+      <p className="text-sm font-bold text-white whitespace-nowrap">
+        {formatCurrency(valor)}
+        {sufijo && <span className="text-xs font-normal text-neutral-500 ml-1">{sufijo}</span>}
+      </p>
+    );
+
+    let precio;
+    let acciones = null;
+
+    if (soldByKg) {
+      precio = precioLinea(p.precioVenta, '/kg');
+      if (kiloCart) {
+        acciones = inCartControls(kiloCart, 'En tu pedido');
+      } else if (p.stock > 0) {
+        acciones = (
+          <div className="flex gap-2">
+            <button onClick={() => onAdd(p, 1, 'kilo')} className={btnSec}>1 kg</button>
+            <button onClick={() => onAdd(p, 2, 'kilo')} className={btnSec}>2 kg</button>
+          </div>
+        );
+      }
+    } else {
+      precio = precioLinea(p.precioVenta, p.kilosPorBolsa ? `bolsa · ${p.kilosPorBolsa}kg` : '');
+      if (vendeSuelto) {
+        const bagAccion = bagCart
+          ? inCartControls(bagCart, 'Bolsa en pedido')
+          : p.stock > 0 && !p.esCombo
+            ? <button onClick={() => onAdd(p, 1, 'bag')} className={btnSec}><ShoppingCart size={14} /> Agregar bolsa</button>
+            : null;
+        const sueltoAccion = kiloCart
+          ? inCartControls(kiloCart, 'Suelto en pedido')
+          : p.stock > 0
+            ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-neutral-500 whitespace-nowrap">{formatCurrency(p.precioKilo)}/kg</span>
+                <button onClick={() => onAdd(p, 1, 'kilo')} className={btnSec}>1 kg</button>
+                <button onClick={() => onAdd(p, 2, 'kilo')} className={btnSec}>2 kg</button>
+              </div>
+            )
+            : null;
+        acciones = (
+          <div className="flex flex-col items-end gap-2">
+            {bagAccion}
+            {sueltoAccion}
+          </div>
+        );
+      } else if (p.esCombo && p.comboVendible === false && !bagCart) {
+        acciones = (
+          <button disabled className="px-4 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm font-medium cursor-not-allowed">
+            Sin stock (combo)
+          </button>
+        );
+      } else if (p.stock > 0 && !bagCart && !p.esCombo) {
+        acciones = (
+          <button onClick={() => onAdd(p, 1, 'bag')} className={btnAdd}>
+            <Plus size={14} /> Agregar
+          </button>
+        );
+      } else if (bagCart) {
+        acciones = inCartControls(bagCart, 'En tu pedido');
+      }
+    }
+
+    return (
+      <div className="group bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden hover:border-orange-500/40 transition-all">
+        <div className="px-4 py-3 flex items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-white truncate">{p.nombre}</h3>
+              {p.categoria && (
+                <span
+                  className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md"
+                  style={{
+                    backgroundColor: p.categoria.color ? `${p.categoria.color}30` : 'rgba(0,0,0,0.5)',
+                    color: p.categoria.color || '#ccc',
+                    border: `1px solid ${p.categoria.color ? `${p.categoria.color}40` : 'rgba(255,255,255,0.1)'}`,
+                  }}
+                >
+                  {p.categoria.nombre}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-neutral-500 mt-0.5 truncate">
+              {soldByKg
+                ? 'Venta por kilo'
+                : p.esCombo
+                  ? 'Combo'
+                  : p.unidadMedida && p.unidadMedida !== 'unidad'
+                    ? `Venta por ${p.unidadMedida}`
+                    : p.descripcion || 'Producto'}
+              {p.stock <= 0 && <span className="text-neutral-600 font-medium"> · Agotado</span>}
+            </p>
+          </div>
+
+          <div className="shrink-0 flex flex-col items-end gap-2">
+            {precio}
+            {acciones}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="group bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden hover:border-emerald-600/40 hover:shadow-lg hover:shadow-black/30 transition-all flex flex-col">
+    <div className="group bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden hover:border-orange-500/40 hover:shadow-lg hover:shadow-black/30 transition-all flex flex-col">
       {/* Imagen del producto */}
       <div className="relative h-44 bg-[#222] overflow-hidden">
         {p.imagen ? (
@@ -159,7 +268,7 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove }) => {
 
         <div className="absolute top-3 right-3">
           {p.stock > 0 ? (
-            <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 backdrop-blur-sm">
+            <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-orange-400/20 text-orange-400 border border-orange-500/30 backdrop-blur-sm">
               En stock
             </span>
           ) : (
@@ -206,7 +315,7 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove }) => {
                   ) : p.stock > 0 && !p.esCombo && (
                     <button
                       onClick={() => onAdd(p, 1, 'bag')}
-                      className="w-full py-2.5 rounded-lg border border-[#333] text-neutral-300 text-sm font-medium hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-colors"
+                      className="w-full py-2.5 rounded-lg border border-[#333] text-neutral-300 text-sm font-medium hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-colors"
                     >
                       Agregar bolsa
                     </button>
@@ -230,7 +339,7 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove }) => {
                   {p.stock > 0 && !bagCart && !p.esCombo && (
                     <button
                       onClick={() => onAdd(p, 1, 'bag')}
-                      className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-2.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                     >
                       <Plus size={14} />
                       Agregar al pedido
@@ -273,8 +382,19 @@ const Catalogo = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [openCat, setOpenCat] = useState(null);
   const [banner, setBanner] = useState(0);
   const [bannerErrors, setBannerErrors] = useState({});
+
+  const toggleSeccion = (id) => {
+    setOpenCat((prev) => (prev === id ? null : id));
+  };
+
+  useEffect(() => {
+    if (searchTerm.trim()) setOpenCat('all');
+    else if (selectedCategory !== 'all') setOpenCat(selectedCategory);
+    else setOpenCat(null);
+  }, [searchTerm, selectedCategory]);
 
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
@@ -399,7 +519,7 @@ const Catalogo = () => {
       setCart([]);
       setShowOrderForm(false);
 
-      const ownerPhone = import.meta.env.VITE_OWNER_WHATSAPP || '';
+      const ownerPhone = import.meta.env.VITE_OWNER_WHATSAPP || '5491162589131';
       const waLines = [
         `*Nuevo Pedido — ${data.numero}*`,
         '',
@@ -482,17 +602,15 @@ const Catalogo = () => {
       .slice(0, 4);
   }, [products]);
 
-  const activeBanner = BANNERS[banner % BANNERS.length];
-
   return (
     <div className="min-h-screen bg-[#0f0f0f]">
 
       {/* Franja superior */}
-      <div className="bg-emerald-700 text-white">
+      <div className="bg-orange-700 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-center gap-2 text-xs font-medium">
           <Truck size={14} />
           <span>Envios a coordinar · Retiro en el local seguro</span>
-          <span className="hidden sm:inline text-emerald-200">|</span>
+          <span className="hidden sm:inline text-orange-200">|</span>
           <span className="hidden sm:inline">{STORE.horario}</span>
         </div>
       </div>
@@ -502,7 +620,7 @@ const Catalogo = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-600/20">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-600/20">
                 <PawPrint size={22} className="text-white" />
               </div>
               <div>
@@ -514,14 +632,14 @@ const Catalogo = () => {
               <button
                 onClick={handleWhatsAppShare}
                 disabled={products.length === 0}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#333] text-white text-sm font-semibold transition-colors hover:border-emerald-600/50 disabled:opacity-40"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[#333] text-white text-sm font-semibold transition-colors hover:border-orange-500/50 disabled:opacity-40"
               >
-                <MessageCircle size={16} className="text-emerald-500" />
+                <MessageCircle size={16} className="text-orange-400" />
                 <span className="hidden sm:inline">Compartir</span>
               </button>
               <button
                 onClick={() => setShowCart(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors shadow-lg shadow-emerald-600/20"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold transition-colors shadow-lg shadow-orange-600/20"
               >
                 <ShoppingCart size={16} />
                 <span className="hidden sm:inline">Mi Pedido</span>
@@ -618,8 +736,8 @@ const Catalogo = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {BENEFITS.map((b, i) => (
             <div key={i} className="flex items-center gap-3 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl px-4 py-3">
-              <div className="w-9 h-9 rounded-lg bg-emerald-600/10 flex items-center justify-center shrink-0">
-                <b.icon size={18} className="text-emerald-500" />
+              <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                <b.icon size={18} className="text-orange-400" />
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-white truncate">{b.text}</p>
@@ -640,7 +758,7 @@ const Catalogo = () => {
               placeholder="Buscar producto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-[#222] border border-[#333] rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-600 outline-none text-sm"
+              className="w-full bg-[#222] border border-[#333] rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-neutral-500 focus:ring-1 focus:ring-orange-500/40 focus:border-orange-500 outline-none text-sm"
             />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
@@ -648,7 +766,7 @@ const Catalogo = () => {
               onClick={() => setSelectedCategory('all')}
               className={`shrink-0 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 selectedCategory === 'all'
-                  ? 'bg-emerald-600 text-white'
+                  ? 'bg-orange-500 text-white'
                   : 'bg-[#222] text-neutral-400 hover:bg-[#2a2a2a] border border-[#333]'
               }`}
             >
@@ -675,21 +793,29 @@ const Catalogo = () => {
       {/* ─── Productos destacados (solo cuando no hay filtro) ─── */}
       {!searchTerm && selectedCategory === 'all' && featuredProducts.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
-          <div className="flex items-center gap-3 mb-5">
-            <Star size={20} className="text-amber-400" />
-            <h2 className="text-xl font-bold text-white">Destacados</h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {featuredProducts.map(p => (
-              <ProductCard
-                key={p._id}
-                p={p}
-                cart={cart}
-                onAdd={addToCart}
-                onUpdate={updateCartQty}
-                onRemove={removeFromCart}
-              />
-            ))}
+          <button onClick={() => toggleSeccion('destacados')} className="w-full flex items-center justify-between gap-3 text-left group">
+            <div className="flex items-center gap-3">
+              <Star size={20} className="text-amber-400" />
+              <h2 className="text-lg font-bold text-white">Destacados</h2>
+            </div>
+            <ChevronDown size={20} className={`text-neutral-400 transition-transform duration-300 group-hover:text-white ${openCat === 'destacados' ? 'rotate-180' : ''}`} />
+          </button>
+          <div className={`grid transition-all duration-300 ease-in-out ${openCat === 'destacados' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+            <div className="overflow-hidden">
+              <div className="pt-4 grid grid-cols-1 gap-2">
+                {featuredProducts.map(p => (
+                  <ProductCard
+                    key={p._id}
+                    p={p}
+                    cart={cart}
+                    onAdd={addToCart}
+                    onUpdate={updateCartQty}
+                    onRemove={removeFromCart}
+                    lista
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </section>
       )}
@@ -697,16 +823,14 @@ const Catalogo = () => {
       {/* ─── Productos por categoria ─── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 scroll-mt-32">
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden animate-pulse">
-                <div className="h-44 bg-[#222]" />
-                <div className="p-4 space-y-3">
-                  <div className="h-3 bg-[#222] rounded w-20" />
-                  <div className="h-5 bg-[#222] rounded w-3/4" />
-                  <div className="h-4 bg-[#222] rounded w-1/3" />
-                  <div className="h-9 bg-[#222] rounded" />
+          <div className="grid grid-cols-1 gap-2">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden animate-pulse px-4 py-3 flex items-center justify-between gap-4">
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-[#222] rounded w-1/3" />
+                  <div className="h-3 bg-[#222] rounded w-1/4" />
                 </div>
+                <div className="h-8 bg-[#222] rounded w-28 shrink-0" />
               </div>
             ))}
           </div>
@@ -720,36 +844,47 @@ const Catalogo = () => {
             <p className="text-sm text-neutral-500">
               {filtered.length} producto{filtered.length !== 1 ? 's' : ''}
             </p>
-            {sections.map((sec) => (
-              <section key={sec.id} id={'sec-' + sec.id} className="scroll-mt-36">
-                <div className="flex items-center gap-3 mb-5">
-                  <span className="w-1.5 h-8 rounded-full" style={{ backgroundColor: sec.color || '#666' }} />
-                  <div>
-                    <h2 className="text-xl font-bold text-white">{sec.nombre}</h2>
-                    <p className="text-xs text-neutral-500">{sec.items.length} producto{sec.items.length !== 1 ? 's' : ''}</p>
+            {sections.map((sec) => {
+              const open = openCat === sec.id || openCat === 'all';
+              return (
+                <section key={sec.id} id={'sec-' + sec.id} className="scroll-mt-36">
+                  <button onClick={() => toggleSeccion(sec.id)} className="w-full flex items-center justify-between gap-3 text-left group">
+                    <div className="flex items-center gap-3">
+                      <span className="w-1.5 h-8 rounded-full" style={{ backgroundColor: sec.color || '#666' }} />
+                      <div>
+                        <h2 className="text-lg font-bold text-white">{sec.nombre}</h2>
+                        <p className="text-xs text-neutral-500">{sec.items.length} producto{sec.items.length !== 1 ? 's' : ''}</p>
+                      </div>
+                    </div>
+                    <ChevronDown size={20} className={`text-neutral-400 transition-transform duration-300 group-hover:text-white ${open ? 'rotate-180' : ''}`} />
+                  </button>
+                  <div className={`grid transition-all duration-300 ease-in-out ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                    <div className="overflow-hidden">
+                      <div className="pt-4 grid grid-cols-1 gap-2">
+                        {sec.items.map(p => (
+                          <ProductCard
+                            key={p._id}
+                            p={p}
+                            cart={cart}
+                            onAdd={addToCart}
+                            onUpdate={updateCartQty}
+                            onRemove={removeFromCart}
+                            lista
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {sec.items.map(p => (
-                    <ProductCard
-                      key={p._id}
-                      p={p}
-                      cart={cart}
-                      onAdd={addToCart}
-                      onUpdate={updateCartQty}
-                      onRemove={removeFromCart}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
+                </section>
+              );
+            })}
           </div>
         )}
       </main>
 
       {/* ─── Banner CTA final ─── */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="bg-gradient-to-br from-orange-600 to-amber-500 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="text-center md:text-left">
             <h3 className="text-2xl font-extrabold text-white mb-1">¿No encontras lo que buscas?</h3>
             <p className="text-white/85 text-sm">Consulta por otros productos, tamannos o marcas. Te lo conseguimos.</p>
@@ -758,7 +893,7 @@ const Catalogo = () => {
             href={`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent('¡Hola! Estaba viendo el catalogo y queria consultar por un producto')}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-2 bg-white text-emerald-700 font-bold px-6 py-3 rounded-xl shadow-lg hover:bg-neutral-100 transition-colors shrink-0"
+            className="inline-flex items-center gap-2 bg-white text-orange-700 font-bold px-6 py-3 rounded-xl shadow-lg hover:bg-neutral-100 transition-colors shrink-0"
           >
             <MessageCircle size={18} />
             Consultar por WhatsApp
@@ -773,20 +908,20 @@ const Catalogo = () => {
             {/* Marca + redes */}
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
                   <PawPrint size={18} className="text-white" />
                 </div>
                 <h3 className="text-lg font-bold text-white">{STORE.nombre}</h3>
               </div>
               <p className="text-xs text-neutral-500 leading-relaxed mb-5">{STORE.descripcion}</p>
               <div className="flex gap-3">
-                <a href={STORE.instagram} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-emerald-600/20 border border-[#333] hover:border-emerald-600/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="Instagram">
+                <a href={STORE.instagram} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-orange-500/20 border border-[#333] hover:border-orange-500/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="Instagram">
                   <InstagramIcon size={18} />
                 </a>
-                <a href={STORE.facebook} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-emerald-600/20 border border-[#333] hover:border-emerald-600/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="Facebook">
+                <a href={STORE.facebook} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-orange-500/20 border border-[#333] hover:border-orange-500/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="Facebook">
                   <FacebookIcon size={18} />
                 </a>
-                <a href={`https://wa.me/${STORE.whatsapp}`} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-emerald-600/20 border border-[#333] hover:border-emerald-600/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="WhatsApp">
+                <a href={`https://wa.me/${STORE.whatsapp}`} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-[#222] hover:bg-orange-500/20 border border-[#333] hover:border-orange-500/40 flex items-center justify-center text-neutral-400 hover:text-white transition-colors" aria-label="WhatsApp">
                   <MessageCircle size={18} />
                 </a>
               </div>
@@ -797,19 +932,19 @@ const Catalogo = () => {
               <h4 className="text-sm font-bold text-white uppercase tracking-wider mb-4">Contacto</h4>
               <ul className="space-y-3 text-sm text-neutral-400">
                 <li className="flex items-start gap-3">
-                  <MapPin size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <MapPin size={16} className="text-orange-400 mt-0.5 shrink-0" />
                   <span>{STORE.ubicacion}</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Phone size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <Phone size={16} className="text-orange-400 mt-0.5 shrink-0" />
                   <a href={`tel:${STORE.telefono.replace(/\s/g, '')}`} className="hover:text-white transition-colors">{STORE.telefono}</a>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Mail size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <Mail size={16} className="text-orange-400 mt-0.5 shrink-0" />
                   <a href={`mailto:${STORE.email}`} className="hover:text-white transition-colors">{STORE.email}</a>
                 </li>
                 <li className="flex items-start gap-3">
-                  <Clock size={16} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <Clock size={16} className="text-orange-400 mt-0.5 shrink-0" />
                   <span>{STORE.horario}</span>
                 </li>
               </ul>
@@ -824,7 +959,7 @@ const Catalogo = () => {
                     <li key={cat._id}>
                       <button
                         onClick={() => goToSection(cat._id)}
-                        className="text-neutral-400 hover:text-emerald-400 transition-colors flex items-center gap-2"
+                        className="text-neutral-400 hover:text-orange-400 transition-colors flex items-center gap-2"
                       >
                         <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color || '#666' }} />
                         {cat.nombre}
@@ -847,7 +982,7 @@ const Catalogo = () => {
                 href={`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent('¡Hola! Quiero hacer un pedido en Poroto PetShop')}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+                className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
               >
                 <MessageCircle size={16} />
                 Escribinos por WhatsApp
@@ -860,7 +995,7 @@ const Catalogo = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-neutral-600">
             <p>&copy; {new Date().getFullYear()} {STORE.nombre} — Precios sujetos a cambios sin previo aviso</p>
             <p className="flex items-center gap-1">
-              Hecho con <span className="text-emerald-500">♥</span> para tu mascota
+              Hecho con <span className="text-orange-400">♥</span> para tu mascota
             </p>
           </div>
         </div>
@@ -934,7 +1069,7 @@ const Catalogo = () => {
                 </div>
                 <button
                   onClick={() => { setShowCart(false); setShowOrderForm(true); }}
-                  className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-3 rounded-lg bg-orange-500 hover:bg-orange-400 text-white font-semibold flex items-center justify-center gap-2 transition-colors"
                 >
                   <MessageCircle size={18} />
                   Enviar Pedido por WhatsApp
@@ -964,7 +1099,7 @@ const Catalogo = () => {
                   value={orderData.nombre}
                   onChange={(e) => setOrderData({ ...orderData, nombre: e.target.value })}
                   placeholder="Juan Perez"
-                  className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-600 outline-none"
+                  className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-orange-500/40 focus:border-orange-500 outline-none"
                 />
               </div>
               <div>
@@ -975,7 +1110,7 @@ const Catalogo = () => {
                   value={orderData.telefono}
                   onChange={(e) => setOrderData({ ...orderData, telefono: e.target.value })}
                   placeholder="11 5555 1234"
-                  className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-600 outline-none"
+                  className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-orange-500/40 focus:border-orange-500 outline-none"
                 />
                 <p className="text-[11px] text-neutral-600 mt-1">Si ya sos cliente, se vincula automaticamente</p>
               </div>
@@ -986,7 +1121,7 @@ const Catalogo = () => {
                   onChange={(e) => setOrderData({ ...orderData, notas: e.target.value })}
                   rows={2}
                   placeholder="Ej: Entregar despues de las 18hs..."
-                  className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-emerald-500/40 focus:border-emerald-600 outline-none resize-none"
+                  className="w-full bg-[#222] border border-[#333] rounded-lg px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:ring-1 focus:ring-orange-500/40 focus:border-orange-500 outline-none resize-none"
                 />
               </div>
 
@@ -1010,7 +1145,7 @@ const Catalogo = () => {
               <button
                 type="submit"
                 disabled={orderLoading}
-                className="w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                className="w-full py-3 rounded-lg bg-orange-500 hover:bg-orange-400 text-white font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
               >
                 {orderLoading ? <Loader size={16} className="animate-spin" /> : <MessageCircle size={16} />}
                 {orderLoading ? 'Enviando...' : 'Enviar Pedido'}
@@ -1025,8 +1160,8 @@ const Catalogo = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60" onClick={() => setOrderSuccess(null)} />
           <div className="relative bg-[#1a1a1a] w-full max-w-sm rounded-xl shadow-2xl border border-[#2a2a2a] p-8 text-center">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 size={28} className="text-emerald-400" />
+            <div className="w-14 h-14 rounded-full bg-orange-400/20 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 size={28} className="text-orange-400" />
             </div>
             <h3 className="text-lg font-bold text-white mb-1">¡Pedido Enviado!</h3>
             <p className="text-sm text-neutral-400 mb-1">
@@ -1036,7 +1171,7 @@ const Catalogo = () => {
               Total: <span className="font-bold text-white">{formatCurrency(orderSuccess.total)}</span>
             </p>
             {orderSuccess.clienteAsignado && (
-              <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 mb-4">
+              <p className="text-xs text-orange-400 bg-orange-400/10 border border-orange-500/20 rounded-lg px-3 py-2 mb-4">
                 Se vinculo a tu cuenta de cliente registrada
               </p>
             )}

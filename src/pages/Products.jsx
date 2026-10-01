@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import api from '../api/axios';
-import { useDebounce } from '../hooks/useDebounce';
 import { AuthContext } from '../context/AuthContext';
-import { PlusCircle, Search, Edit2, Trash2, X, PackagePlus, Plus, Minus, Download, CheckSquare, Square, ChevronDown, Sparkles, Loader, Puzzle, Trash } from 'lucide-react';
+import { PlusCircle, Search, Edit2, Trash2, X, PackagePlus, Plus, Minus, Download, CheckSquare, Square, ChevronDown, Sparkles, Loader, Puzzle, Trash, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { exportProductsToExcel } from '../utils/exportProductsExcel';
 
@@ -19,7 +18,7 @@ const calculateMargin = (compra, venta) => {
   return (((venta - compra) / compra) * 100).toFixed(2);
 };
 
-const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete }) {
+const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete, onToggleCatalogo }) {
   return (
     <tr className={`hover:bg-stone-800/50 transition-colors ${isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}>
       <td className="px-4 py-4">
@@ -32,6 +31,12 @@ const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isA
           <img src={p.imagen} alt={p.nombre} className="w-8 h-8 rounded shrink-0 mr-3 object-cover" />
         )}
         <span className="text-textLight">{p.nombre}</span>
+        {p.mostrarEnCatalogo === false && (
+          <span className="ml-2 inline-flex items-center gap-1 bg-red-500/10 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full align-middle">
+            <EyeOff size={11} />
+            Oculto en catálogo
+          </span>
+        )}
       </td>
       <td className="px-4 py-4 text-textMuted font-mono text-xs">{p.sku}</td>
       <td className="px-4 py-4">{p.categoria?.nombre || '-'}</td>
@@ -43,6 +48,14 @@ const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isA
           </span>
           <button onClick={() => onQuickAdjust(p, 1)} className="w-6 h-6 flex items-center justify-center rounded bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors"><Plus size={12} /></button>
         </div>
+        {p.esBolsaAlimento && (
+          <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-textMuted">
+            <span className="w-1 h-1 rounded-full bg-primary shrink-0" />
+            {Number(p.gramosBolsaAbierta) > 0
+              ? `Bolsa abierta: ${(Number(p.gramosBolsaAbierta) / 1000).toLocaleString('es-AR')} kg restantes`
+              : 'Sin bolsa abierta'}
+          </div>
+        )}
       </td>
       <td className="px-4 py-4 text-right">{formatCurrency(p.precioCompra)}</td>
       <td className="px-4 py-4 text-right">{formatCurrency(p.precioVenta)}</td>
@@ -63,6 +76,11 @@ const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isA
           <button onClick={() => onOpenStock(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={16} /></button>
           <button onClick={() => onOpenEdit(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={16} /></button>
           {isAdmin && (
+            <button onClick={() => onToggleCatalogo(p)} className={p.mostrarEnCatalogo === false ? 'text-danger hover:text-red-400' : 'text-textMuted hover:text-textLight'} title={p.mostrarEnCatalogo === false ? 'Mostrar en el catálogo online' : 'Ocultar del catálogo online'}>
+              {p.mostrarEnCatalogo === false ? <Eye size={16} /> : <EyeOff size={16} />}
+            </button>
+          )}
+          {isAdmin && (
             <button onClick={() => onDelete(p._id)} className="text-danger hover:text-red-400" title="Eliminar"><Trash2 size={16} /></button>
           )}
         </div>
@@ -71,7 +89,7 @@ const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isA
   );
 });
 
-const ProductCardRow = React.memo(function ProductCardRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete }) {
+const ProductCardRow = React.memo(function ProductCardRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete, onToggleCatalogo }) {
   return (
     <div className={`p-4 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}>
       <div className="flex items-start gap-3">
@@ -85,6 +103,11 @@ const ProductCardRow = React.memo(function ProductCardRow({ p, isSelected, isAdm
             <div className="flex items-center gap-2 shrink-0">
               <button onClick={() => onOpenStock(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={17} /></button>
               <button onClick={() => onOpenEdit(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={17} /></button>
+              {isAdmin && (
+                <button onClick={() => onToggleCatalogo(p)} className={p.mostrarEnCatalogo === false ? 'text-danger hover:text-red-400' : 'text-textMuted hover:text-textLight'} title={p.mostrarEnCatalogo === false ? 'Mostrar en el catálogo online' : 'Ocultar del catálogo online'}>
+                  {p.mostrarEnCatalogo === false ? <Eye size={17} /> : <EyeOff size={17} />}
+                </button>
+              )}
               {isAdmin && (
                 <button onClick={() => onDelete(p._id)} className="text-danger hover:text-red-400" title="Eliminar"><Trash2 size={17} /></button>
               )}
@@ -108,6 +131,14 @@ const ProductCardRow = React.memo(function ProductCardRow({ p, isSelected, isAdm
         </div>
         <button onClick={() => onQuickAdjust(p, 1)} className="w-9 h-9 flex items-center justify-center rounded-lg bg-stone-800 text-stone-300 hover:bg-stone-700 hover:text-white transition-colors"><Plus size={15} /></button>
       </div>
+      {p.esBolsaAlimento && (
+        <p className="mt-1.5 text-[10px] text-textMuted flex items-center gap-1.5">
+          <span className="w-1 h-1 rounded-full bg-primary shrink-0" />
+          {Number(p.gramosBolsaAbierta) > 0
+            ? `Bolsa abierta: ${(Number(p.gramosBolsaAbierta) / 1000).toLocaleString('es-AR')} kg restantes`
+            : 'Sin bolsa abierta'}
+        </p>
+      )}
       <div className="mt-3 grid grid-cols-3 gap-2">
         <div className="bg-background rounded-lg border border-stone-800 px-2 py-1.5">
           <p className="text-[9px] uppercase font-bold text-textMuted">Compra</p>
@@ -134,7 +165,12 @@ const Products = () => {
   
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const debouncedSearch = useDebounce(searchTerm, 300);
+  const [priceFilter, setPriceFilter] = useState('all'); // 'all' | 'con' | 'sin'
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [filterGenericos, setFilterGenericos] = useState(false);
+  const [filterBolsas, setFilterBolsas] = useState(false);
+  const [filterAgotados, setFilterAgotados] = useState(false);
   const [filterWithoutMovement, setFilterWithoutMovement] = useState(false);
   const [filterOnlyCombos, setFilterOnlyCombos] = useState(false);
   const [withoutMovementData, setWithoutMovementData] = useState(null);
@@ -145,11 +181,57 @@ const Products = () => {
     [withoutMovementData]
   );
 
-  const displayProducts = useMemo(() => products.filter(p => {
-    if (filterOnlyCombos && !p.esCombo) return false;
-    if (filterWithoutMovement && !withoutMovementIds.has(p._id)) return false;
-    return true;
-  }), [products, filterOnlyCombos, filterWithoutMovement, withoutMovementIds]);
+  // Búsqueda avanzada + filtros, todo en cliente (los productos se traen completos).
+  // Busca por nombre, SKU, descripción, proveedor, categoría y envase; un término
+  // numérico también coincide con precio venta/compra, kilo, stock o kilos por bolsa.
+  const displayProducts = useMemo(() => {
+    const terms = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const min = parseFloat(minPrice);
+    const max = parseFloat(maxPrice);
+    const hasPrice = (p) => (Number(p.precioCompra) || 0) > 0 || (Number(p.precioVenta) || 0) > 0;
+    const textOf = (p) => [
+      p.nombre, p.sku, p.descripcion, p.proveedor, p.aspectoBolsa, p.categoria?.nombre
+    ].filter(Boolean).join(' ').toLowerCase();
+    const termToNumber = (t) => {
+      const raw = t.replace(/[^0-9.,-]/g, '');
+      if (!raw) return null;
+      const n = Number(raw.replace(/([.,])(?=\d{3}(?:[.,]|$))/g, '').replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const filtered = products.filter((p) => {
+      if (filterOnlyCombos && !p.esCombo) return false;
+      if (filterWithoutMovement && !withoutMovementIds.has(p._id)) return false;
+      if (selectedCategory !== 'all' && p.categoria?._id !== selectedCategory) return false;
+      if (filterGenericos && !p.esGenerico) return false;
+      if (filterBolsas && !p.esBolsaAlimento) return false;
+      if (filterAgotados && Number(p.stock) > 0) return false;
+      if (priceFilter === 'con' && !hasPrice(p)) return false;
+      if (priceFilter === 'sin' && hasPrice(p)) return false;
+      if (Number.isFinite(min) && Number(p.precioVenta) < min) return false;
+      if (Number.isFinite(max) && Number(p.precioVenta) > max) return false;
+      return true;
+    });
+
+    if (terms.length === 0) return filtered;
+
+    const numericFields = ['precioVenta', 'precioCompra', 'precioKilo', 'stock', 'kilosPorBolsa'];
+    const scored = filtered.map((p) => {
+      const text = textOf(p);
+      let score = 0;
+      for (const t of terms) {
+        if (text.includes(t)) { score += 1; continue; }
+        const num = termToNumber(t);
+        if (num !== null && numericFields.some((f) => Number(p[f]) === num)) score += 1;
+      }
+      return { p, score };
+    });
+    return scored
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.p.nombre.localeCompare(b.p.nombre, 'es'))
+      .map((x) => x.p);
+  }, [products, searchTerm, selectedCategory, priceFilter, minPrice, maxPrice,
+      filterGenericos, filterBolsas, filterAgotados, filterWithoutMovement, filterOnlyCombos, withoutMovementIds]);
 
   // Paginación de la lista
   const [page, setPage] = useState(1);
@@ -162,7 +244,8 @@ const Products = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, selectedCategory, filterOnlyCombos, filterWithoutMovement, pageSize]);
+  }, [searchTerm, selectedCategory, priceFilter, minPrice, maxPrice,
+      filterGenericos, filterBolsas, filterAgotados, filterOnlyCombos, filterWithoutMovement, pageSize]);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -171,7 +254,7 @@ const Products = () => {
     nombre: '', descripcion: '', sku: '', categoria: '', precioCompra: 0, precioVenta: 0, 
     stock: 0, stockMinimo: 5, unidadMedida: 'unidad', proveedor: '', imagen: '',
     esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: 42,
-    notasIA: '', aspectoBolsa: ''
+    notasIA: '', aspectoBolsa: '', mostrarEnCatalogo: true
   });
 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
@@ -228,18 +311,14 @@ const Products = () => {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      let url = '/products?';
-      if (debouncedSearch) url += `search=${debouncedSearch}&`;
-      if (selectedCategory !== 'all') url += `category=${selectedCategory}`;
-      
-      const res = await api.get(url);
+      const res = await api.get('/products');
       setProducts(res.data);
     } catch (error) {
       console.error(error);
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, selectedCategory]);
+  }, []);
 
   useEffect(() => {
     fetchProducts();
@@ -289,7 +368,7 @@ const Products = () => {
       precioCompra: 0, precioVenta: 0, stock: 0, stockMinimo: 5, 
       unidadMedida: 'unidad', proveedor: '', imagen: '',
       esGenerico: false, esBolsaAlimento: false, kilosPorBolsa: '', precioKilo: '', margenSuelto: margenDefecto,
-      notasIA: '', aspectoBolsa: ''
+      notasIA: '', aspectoBolsa: '', mostrarEnCatalogo: true
     });
     setIsModalOpen(true);
   };
@@ -303,7 +382,8 @@ const Products = () => {
       unidadMedida: p.unidadMedida, proveedor: p.proveedor || '', imagen: p.imagen || '',
       esGenerico: p.esGenerico || false, esBolsaAlimento: p.esBolsaAlimento || false, 
       kilosPorBolsa: p.kilosPorBolsa || '', precioKilo: p.precioKilo || '', margenSuelto: p.margenSuelto || 42,
-      notasIA: p.notasIA || '', aspectoBolsa: p.aspectoBolsa || ''
+      notasIA: p.notasIA || '', aspectoBolsa: p.aspectoBolsa || '',
+      mostrarEnCatalogo: p.mostrarEnCatalogo !== false
     });
     setIsModalOpen(true);
   }, []);
@@ -354,6 +434,17 @@ const Products = () => {
       } catch {
         toast.error('Error al eliminar');
       }
+    }
+  }, [fetchProducts]);
+
+  const toggleCatalogo = useCallback(async (p) => {
+    const nuevo = p.mostrarEnCatalogo === false;
+    try {
+      await api.put(`/products/${p._id}`, { mostrarEnCatalogo: nuevo });
+      toast.success(nuevo ? 'Producto visible en el catálogo online' : 'Producto oculto del catálogo online');
+      fetchProducts();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Error al cambiar visibilidad de catálogo');
     }
   }, [fetchProducts]);
 
@@ -425,6 +516,8 @@ const Products = () => {
     { value: 'agregar_stock',      label: '➕  Agregar unidades de stock',    needsValue: true, placeholder: 'Cantidad a agregar', type: 'number' },
     { value: 'aplicar_margen_venta', label: '📈  Subir precio venta en %',     needsValue: true, placeholder: 'Ej: 5 (para +5%)', type: 'number' },
     { value: 'aplicar_margen_costo', label: '🔄  Recalcular precio desde costo en %', needsValue: true, placeholder: 'Ej: 42 (costo + 42%)', type: 'number' },
+    { value: 'mostrar_en_catalogo', label: '👁️  Mostrar en catálogo online',  needsValue: false },
+    { value: 'ocultar_del_catalogo', label: '🚫  Ocultar del catálogo online', needsValue: false },
   ];
 
   const handleBulkActionChange = (e) => {
@@ -638,7 +731,7 @@ const Products = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
             <input 
               type="text" 
-              placeholder="Buscar por nombre o SKU..." 
+              placeholder="Buscar: nombre, SKU, descripción, proveedor, categoría o precio (ej: 12000)..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-background border border-stone-700 rounded-lg pl-10 pr-4 py-2 text-textLight focus:ring-2 focus:ring-primary focus:outline-none"
@@ -716,6 +809,64 @@ const Products = () => {
           ))}
         </div>
 
+        {/* Filtros avanzados */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] uppercase font-bold text-textMuted tracking-wider">Precio</span>
+          {[
+            { v: 'all', label: 'Todos' },
+            { v: 'con', label: 'Con precio' },
+            { v: 'sin', label: 'Sin precio' },
+          ].map((o) => (
+            <button
+              key={o.v}
+              onClick={() => setPriceFilter(o.v)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                priceFilter === o.v
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-500/20'
+                  : 'bg-stone-800 border-stone-700 text-textMuted hover:border-stone-500 hover:text-textLight'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+          <div className="flex items-center gap-1.5 bg-stone-800/60 border border-stone-700 rounded-full px-2.5 py-1">
+            <span className="text-[10px] font-bold text-textMuted">$</span>
+            <input
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              placeholder="Min"
+              inputMode="decimal"
+              className="w-16 bg-transparent text-xs text-textLight focus:outline-none placeholder:text-textMuted"
+            />
+            <span className="text-textMuted text-xs">–</span>
+            <input
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              placeholder="Max"
+              inputMode="decimal"
+              className="w-16 bg-transparent text-xs text-textLight focus:outline-none placeholder:text-textMuted"
+            />
+          </div>
+          <span className="w-px h-5 bg-stone-700 mx-1 hidden sm:block" />
+          {[
+            { key: 'gen', on: filterGenericos, set: setFilterGenericos, label: 'Genéricos' },
+            { key: 'bolsa', on: filterBolsas, set: setFilterBolsas, label: 'Bolsas de alimento' },
+            { key: 'agotado', on: filterAgotados, set: setFilterAgotados, label: 'Agotados' },
+          ].map((f) => (
+            <button
+              key={f.key}
+              onClick={() => f.set(!f.on)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                f.on
+                  ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                  : 'bg-stone-800 border-stone-700 text-textMuted hover:border-stone-500 hover:text-textLight'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {filterWithoutMovement && (
           <div className="flex items-center gap-2 px-1 text-xs text-red-400">
             <span>Mostrando solo productos sin movimiento ({withoutMovementData?.total || displayProducts.length})</span>
@@ -762,9 +913,10 @@ const Products = () => {
                      onToggleSelect={toggleSelect}
                      onQuickAdjust={quickAdjustStock}
                      onOpenStock={openStockModal}
-                     onOpenEdit={openEditModal}
-                     onDelete={handleDelete}
-                   />
+onOpenEdit={openEditModal}
+                      onDelete={handleDelete}
+                      onToggleCatalogo={toggleCatalogo}
+                    />
                 ))
               )}
             </tbody>
@@ -791,6 +943,7 @@ const Products = () => {
                 onOpenStock={openStockModal}
                 onOpenEdit={openEditModal}
                 onDelete={handleDelete}
+                onToggleCatalogo={toggleCatalogo}
               />
             ))
           )}
@@ -873,6 +1026,11 @@ const Products = () => {
                        <label className="flex items-center gap-2 cursor-pointer">
                           <input type="checkbox" name="esBolsaAlimento" checked={formData.esBolsaAlimento} onChange={handleInputChange} className="w-4 h-4 text-primary bg-stone-800 border-stone-600 rounded focus:ring-primary" />
                           <span className="text-sm text-textMuted">Es bolsa de alimento fraccionable (Se puede vender suelto)</span>
+                       </label>
+
+                       <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" name="mostrarEnCatalogo" checked={formData.mostrarEnCatalogo !== false} onChange={handleInputChange} className="w-4 h-4 text-primary bg-stone-800 border-stone-600 rounded focus:ring-primary" />
+                          <span className="text-sm text-textMuted">Mostrar en el catálogo online <span className="text-textMuted/60">(desmarcar para ocultarlo a los clientes web)</span></span>
                        </label>
                     </div>
 

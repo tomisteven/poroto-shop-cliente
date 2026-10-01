@@ -23,6 +23,7 @@ import Clientes from './pages/Clientes';
 import Proveedores from './pages/Proveedores';
 import OrdenesCompra from './pages/OrdenesCompra';
 import Gastos from './pages/Gastos';
+import GastosFijos from './pages/GastosFijos';
 import Budgets from './pages/Budgets';
 import Catalogo from './pages/Catalogo';
 import Promociones from './pages/Promociones';
@@ -33,6 +34,7 @@ import Calendario from './pages/Calendario';
 import Afiliados from './pages/Afiliados';
 import AIHub from './pages/AIHub';
 import AnalisisVentas from './pages/AnalisisVentas';
+import PreguntarIA from './pages/PreguntarIA';
 import AnalizarProductos from './pages/AnalizarProductos';
 import Configuracion from './pages/Configuracion';
 
@@ -73,6 +75,7 @@ function App() {
               <Route path="proveedores" element={<Proveedores />} />
               <Route path="ordenes-compra" element={<OrdenesCompra />} />
               <Route path="gastos" element={<Gastos />} />
+              <Route path="gastos-fijos" element={<GastosFijos />} />
               <Route path="presupuestos" element={<Budgets />} />
               <Route path="promociones" element={<Promociones />} />
               <Route path="asistente" element={<Asistente />} />
@@ -81,6 +84,7 @@ function App() {
               <Route path="calendario" element={<Calendario />} />
               <Route path="afiliados" element={<Afiliados />} />
               <Route path="ai-hub" element={<AIHub />} />
+              <Route path="preguntar-ia" element={<PreguntarIA />} />
               <Route path="analisis-productos" element={<AnalizarProductos />} />
               
               <Route path="users" element={
