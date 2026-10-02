@@ -53,8 +53,24 @@ const BENEFITS = [
   { icon: Heart, text: 'Atencion personalizada', sub: 'Te asesoramos' },
 ];
 
-const CATEGORY_PRIORITY = ['comida para perro', 'comida para gato', 'piedras sanitarias', 'huesos', 'snacks', 'accesorios'];
+const CATEGORY_RANK = {
+  'comida para perro': 0,
+  'alimentos para perros': 0,
+  'alimentos para pensos': 0,
+  'comida para gato': 1,
+  'alimentos para gatos': 1,
+  'piedras sanitarias': 2,
+  'huesos': 3,
+  'snack': 4,
+  'snacks': 4,
+  'accesorios': 5,
+  'accesorios comida': 5,
+};
 const normalizeName = (nombre) => (nombre || '').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const categoryRank = (nombre) => {
+  const key = normalizeName(nombre);
+  return Object.prototype.hasOwnProperty.call(CATEGORY_RANK, key) ? CATEGORY_RANK[key] : 999;
+};
 
 /* ─── Iconos SVG para redes (lucide-react los removio) ─── */
 const InstagramIcon = ({ size = 18, ...props }) => (
@@ -596,13 +612,7 @@ const Catalogo = () => {
       }
       groups.get(id).items.push(p);
     });
-    return [...groups.values()].sort((a, b) => {
-      const pa = CATEGORY_PRIORITY.indexOf(normalizeName(a.nombre));
-      const pb = CATEGORY_PRIORITY.indexOf(normalizeName(b.nombre));
-      const rankA = pa === -1 ? CATEGORY_PRIORITY.length : pa;
-      const rankB = pb === -1 ? CATEGORY_PRIORITY.length : pb;
-      return rankA - rankB;
-    });
+    return [...groups.values()].sort((a, b) => categoryRank(a.nombre) - categoryRank(b.nombre));
   }, [filtered]);
 
   const featuredProducts = useMemo(() => {
