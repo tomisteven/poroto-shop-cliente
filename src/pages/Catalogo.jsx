@@ -53,6 +53,9 @@ const BENEFITS = [
   { icon: Heart, text: 'Atencion personalizada', sub: 'Te asesoramos' },
 ];
 
+const CATEGORY_PRIORITY = ['comida para perro', 'comida para gato', 'piedras sanitarias', 'huesos', 'snacks', 'accesorios'];
+const normalizeName = (nombre) => (nombre || '').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
 /* ─── Iconos SVG para redes (lucide-react los removio) ─── */
 const InstagramIcon = ({ size = 18, ...props }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -593,7 +596,13 @@ const Catalogo = () => {
       }
       groups.get(id).items.push(p);
     });
-    return [...groups.values()];
+    return [...groups.values()].sort((a, b) => {
+      const pa = CATEGORY_PRIORITY.indexOf(normalizeName(a.nombre));
+      const pb = CATEGORY_PRIORITY.indexOf(normalizeName(b.nombre));
+      const rankA = pa === -1 ? CATEGORY_PRIORITY.length : pa;
+      const rankB = pb === -1 ? CATEGORY_PRIORITY.length : pb;
+      return rankA - rankB;
+    });
   }, [filtered]);
 
   const featuredProducts = useMemo(() => {
