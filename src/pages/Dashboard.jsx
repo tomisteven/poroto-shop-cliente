@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import {
   TrendingUp, ShoppingCart, DollarSign, Receipt, AlertTriangle, Package,
   PackageX, ShoppingBag, Clock, ArrowRight, Sparkles, ChevronRight,
   AlertCircle, Globe, Share2, BarChart3, Lock, X,
-  Target, RefreshCw, ArrowUpRight, ArrowDownRight, Calculator, ReceiptText, Home, Wallet
+  Target, RefreshCw, ArrowUpRight, ArrowDownRight, Calculator, ReceiptText, Home, Wallet,
+  Users, Search, Phone, ChevronDown, ChevronUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -22,6 +23,14 @@ const formatNum = (val) => {
   return Number.isInteger(val) ? val.toLocaleString('es-AR') : Number(val).toLocaleString('es-AR', { maximumFractionDigits: 0 });
 };
 
+const formatHours = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const fecha = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  const hora = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  return `${fecha} · ${hora}`;
+};
+
 const now = new Date();
 const greeting = () => {
   const h = now.getHours();
@@ -32,6 +41,90 @@ const greeting = () => {
 const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const fechaStr = dias[now.getDay()] + ', ' + now.getDate() + ' de ' + meses[now.getMonth()] + ' de ' + now.getFullYear();
+
+/* ─── Buscador rápido de clientes ─── */
+const BuscadorClientesRapido = () => {
+  const navigate = useNavigate();
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const texto = q.trim();
+    if (texto.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/customers/buscar?q=${encodeURIComponent(texto)}&limit=8`);
+        setResults(data);
+        setOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const ir = (id) => {
+    setOpen(false);
+    setQ('');
+    setResults([]);
+    navigate(`/clientes/${id}`);
+  };
+
+  return (
+    <div className="relative w-full max-w-md">
+      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted pointer-events-none" />
+      <input
+        value={q}
+        onChange={e => setQ(e.target.value)}
+        onFocus={() => results.length && setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={e => {
+          if (e.key === 'Escape') setOpen(false);
+          if (e.key === 'Enter' && results[0]) ir(results[0]._id);
+        }}
+        placeholder="Buscar cliente rápido (nombre o teléfono)..."
+        className="w-full bg-surface border border-stone-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-textLight placeholder-textMuted focus:outline-none focus:border-primary transition-colors"
+      />
+      {loading && (
+        <RefreshCw size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-textMuted animate-spin" />
+      )}
+      {open && (
+        <div className="absolute z-50 mt-2 w-full bg-surface border border-stone-800 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
+          {results.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-textMuted text-center">Sin resultados para "{q.trim()}"</p>
+          ) : (
+            results.map(c => (
+              <button
+                key={c._id}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => ir(c._id)}
+                className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-stone-800/50 transition-colors text-left border-b border-stone-800/60 last:border-0"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-textLight truncate">{c.nombre}</p>
+                  <p className="text-xs text-textMuted flex items-center gap-1">
+                    <Phone size={11} /> {c.telefono || 'sin teléfono'} · {c.totalCompras || 0} compras
+                    {c.ultimaCompra && ` · última ${new Date(c.ultimaCompra).toLocaleDateString('es-AR')}`}
+                  </p>
+                </div>
+                <span className="text-sm font-bold text-primary shrink-0">{formatCurrency(c.totalGastado)}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Card = ({ icon: Icon, label, value, sub, gradient }) => (
   <div className="group bg-surface rounded-2xl border border-stone-800/80 p-5 hover:border-stone-700/80 transition-all duration-300 hover:shadow-xl hover:shadow-stone-900/50 hover:-translate-y-0.5">
@@ -92,6 +185,8 @@ const Dashboard = () => {
   const [lowStock, setLowStock] = useState([]);
   const [withoutMovement, setWithoutMovement] = useState({ total: 0 });
   const [recentSales, setRecentSales] = useState([]);
+  const [showRecentSales, setShowRecentSales] = useState(true);
+  const [refreshingSales, setRefreshingSales] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('top');
   const [showCashClose, setShowCashClose] = useState(false);
@@ -117,7 +212,7 @@ const Dashboard = () => {
         api.get('/products/low-stock'),
         api.get('/reports/global-stats'),
         api.get('/products/without-movement?months=3'),
-        api.get('/sales?limit=5'),
+        api.get('/reports/latest-sales?limit=5'),
       ]);
 
       const chartData = (resSummary.data.ventasPorHora || []).map(item => ({
@@ -129,7 +224,7 @@ const Dashboard = () => {
       setLowStock(resLow.data);
       setGlobalStats(resGlobal.data);
       setWithoutMovement(resWM.data);
-      setRecentSales(resSales.data.slice(0, 5));
+      setRecentSales(Array.isArray(resSales.data) ? resSales.data : []);
     } catch (error) {
       console.error('Error cargando dashboard', error);
     }
@@ -164,12 +259,27 @@ const Dashboard = () => {
       await fetchExtra();
     };
     fetchAll();
+    // refresca las ultimas ventas cada 60s para que aparezcan sin recargar
+    const intervalo = setInterval(() => fetchMain(), 60000);
+    return () => clearInterval(intervalo);
   }, []);
 
   const handleShareCatalog = () => {
     const url = window.location.origin + '/catalogo';
     navigator.clipboard.writeText(url);
     toast.success('Link del catálogo copiado');
+  };
+
+  const refreshSales = async () => {
+    setRefreshingSales(true);
+    try {
+      const { data } = await api.get('/reports/latest-sales?limit=5');
+      setRecentSales(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('No se pudieron actualizar las ventas');
+    } finally {
+      setRefreshingSales(false);
+    }
   };
 
   const handleCashClose = async () => {
@@ -265,6 +375,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -311,6 +422,14 @@ const Dashboard = () => {
             Cierre de Caja
           </button>
         </div>
+      </div>
+
+      {/* Buscador rápido de clientes */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+        <BuscadorClientesRapido />
+        <Link to="/clientes" className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-stone-700/50 text-textLight text-sm font-medium hover:border-primary hover:text-primary transition-colors shrink-0">
+          <Users size={16} /> Ver todos los clientes
+        </Link>
       </div>
 
       {/* Barras de Progreso Diarias */}
@@ -900,46 +1019,101 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Row 6: Recent sales */}
-      {recentSales.length > 0 && (
-        <div className="bg-surface rounded-2xl border border-stone-800/80 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-bold text-textLight flex items-center gap-2">
-              <Clock size={16} className="text-stone-400" />
-              Últimas Ventas
+      {/* Ultimas 5 ventas (contraible) */}
+      <section className="bg-surface rounded-2xl border border-stone-800/80 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowRecentSales(s => !s)}
+            className="flex items-center gap-2 py-1 text-left flex-1 min-w-0 transition-colors"
+            title={showRecentSales ? 'Contraer' : 'Expandir'}
+          >
+            <Clock size={16} className="text-stone-400 shrink-0" />
+            <h3 className="text-base font-bold text-textLight">
+              Últimas 5 ventas
+              <span className="ml-2 text-xs font-normal text-textMuted">({recentSales.length})</span>
             </h3>
-            <Link to="/sales" className="text-xs text-primary hover:text-primary/80 flex items-center gap-1">
-              Ver todas <ArrowRight size={12} />
-            </Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-textMuted text-[10px] uppercase tracking-wider border-b border-stone-800">
-                  <th className="text-left pb-3 font-medium">Ticket</th>
-                  <th className="text-left pb-3 font-medium">Cliente</th>
-                  <th className="text-right pb-3 font-medium">Total</th>
-                  <th className="text-right pb-3 font-medium hidden sm:table-cell">Pago</th>
-                  <th className="text-right pb-3 font-medium hidden sm:table-cell">Hora</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-800/50">
-                {recentSales.slice(0, 5).map((s) => (
-                  <tr key={s._id} className="hover:bg-stone-800/20 transition-colors">
-                    <td className="py-3 text-textLight font-mono text-xs">{s.numeroTicket}</td>
-                    <td className="py-3 text-textLight text-sm">{s.cliente?.nombre || '\u2014'}</td>
-                    <td className="py-3 text-textLight font-bold text-right">{formatCurrency(s.totalFinal)}</td>
-                    <td className="py-3 text-textMuted text-right hidden sm:table-cell capitalize">{s.metodoPago}</td>
-                    <td className="py-3 text-textMuted text-xs text-right hidden sm:table-cell">
-                      {new Date(s.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            {showRecentSales ? <ChevronUp size={16} className="text-stone-400 shrink-0" /> : <ChevronDown size={16} className="text-stone-400 shrink-0" />}
+          </button>
+          <button
+            onClick={refreshSales}
+            disabled={refreshingSales}
+            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-textMuted hover:text-textLight transition-colors shrink-0"
+            title="Actualizar ventas"
+          >
+            <RefreshCw size={14} className={refreshingSales ? 'animate-spin' : ''} />
+          </button>
+          <Link to="/sales" className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 shrink-0">
+            Ver todas <ArrowRight size={12} />
+          </Link>
         </div>
-      )}
+
+        {showRecentSales && (
+          <div className="space-y-2 mt-2 pb-1">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="bg-surface border border-stone-800/60 rounded-xl px-4 py-4 animate-pulse space-y-2">
+                  <div className="h-3 w-40 rounded bg-stone-800" />
+                  <div className="h-3 w-full rounded bg-stone-800" />
+                  <div className="h-3 w-24 rounded bg-stone-800" />
+                </div>
+              ))
+            ) : recentSales.length === 0 ? (
+              <p className="text-sm text-textMuted py-6 text-center">Todavía no hay ventas registradas.</p>
+            ) : (
+              recentSales.map(v => (
+                <div key={v._id} className="bg-surface border border-stone-800/60 rounded-xl px-3.5 py-2.5 space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-textLight">
+                      <Receipt size={13} className="text-primary" />
+                      {v.numeroTicket}
+                    </span>
+                    <span className="text-xs text-textMuted inline-flex items-center gap-1">
+                      <Clock size={11} /> {formatHours(v.fecha)}
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 rounded-md bg-stone-800/60 text-textMuted capitalize">{v.metodoPago}</span>
+                    {v.cliente ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-sky-400">
+                        <Users size={11} className="shrink-0" />
+                        <span className="truncate">{v.cliente.nombre}</span>
+                        {v.cliente.telefono && <span className="text-textMuted">· {v.cliente.telefono}</span>}
+                        {v.puntosGanados > 0 && <span className="text-[10px] px-1.5 py-px rounded bg-primary/15 text-primary">+{v.puntosGanados} pts</span>}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-textMuted italic">Sin cliente asignado</span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {v.items.map((i, idx) => (
+                      <span key={`${i.nombre}-${idx}`} className="text-[11px] px-2 py-0.5 rounded-md bg-primary/10 text-primary/90 border border-primary/15">
+                        {i.nombre} <b className="text-textLight">x{i.cantidad}</b>
+                        {i.esVentaSuelta && i.kilosVendidos ? <span className="text-primary/70"> ({i.kilosVendidos} kg)</span> : null}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-5 border-t border-stone-800/60 pt-2 flex-wrap">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-textMuted">Gasto</p>
+                      <p className="text-sm font-bold text-textLight">{formatCurrency(v.totalFinal)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-textMuted">Costo</p>
+                      <p className="text-sm text-textMuted">{formatCurrency(v.costo)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-textMuted">Ganancia</p>
+                      <p className={`text-sm font-bold ${v.ganancia >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {v.ganancia >= 0 ? '+' : '−'}{formatCurrency(Math.abs(v.ganancia))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </section>
 
       {/* Modal Cierre de Caja */}
       {showCashClose && cashClose && (

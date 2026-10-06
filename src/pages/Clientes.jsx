@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
-import { Users, Plus, Edit3, Trash2, Search, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Plus, Edit3, Trash2, Search, X, History, Receipt } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const emptyCustomer = { nombre: '', telefono: '', email: '', direccion: '' };
+const formatCurrency = (v) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(v || 0);
+const formatDate = (d) => (d ? new Date(d).toLocaleDateString('es-AR') : '—');
 
 const Clientes = () => {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -15,7 +19,7 @@ const Clientes = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const { data } = await api.get('/customers?all=true');
+      const { data } = await api.get('/customers/buscar?all=true&limit=300');
       setCustomers(data);
     } catch {
       toast.error('Error al cargar clientes');
@@ -28,7 +32,7 @@ const Clientes = () => {
 
   const openModal = (item = null) => {
     setEditing(item);
-    setForm(item ? { ...item } : { ...emptyCustomer });
+    setForm(item ? { ...emptyCustomer, ...item } : { ...emptyCustomer });
     setModal(true);
   };
 
@@ -36,11 +40,11 @@ const Clientes = () => {
     try {
       if (editing) {
         const { data } = await api.put(`/customers/${editing._id}`, form);
-        setCustomers(prev => prev.map(c => c._id === data._id ? data : c));
+        setCustomers(prev => prev.map(c => c._id === data._id ? { ...c, ...data } : c));
         toast.success('Cliente actualizado');
       } else {
         const { data } = await api.post('/customers', form);
-        setCustomers(prev => [data, ...prev]);
+        setCustomers(prev => [{ ...data, totalGastado: 0, totalCompras: 0, comprasPos: 0, pedidosWeb: 0, ultimaCompra: null }, ...prev]);
         toast.success('Cliente creado');
       }
       setModal(false);
@@ -69,6 +73,8 @@ const Clientes = () => {
       )
     : customers;
 
+  const totalFacturado = customers.reduce((acc, c) => acc + (c.totalGastado || 0), 0);
+
   if (loading) {
     return <div className="flex h-64 items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   }
@@ -81,7 +87,9 @@ const Clientes = () => {
             <Users size={28} className="text-primary" />
             Clientes
           </h1>
-          <p className="text-textMuted text-sm mt-1">{customers.filter(c => c.activo).length} clientes activos</p>
+          <p className="text-textMuted text-sm mt-1">
+            {customers.filter(c => c.activo).length} clientes activos · {formatCurrency(totalFacturado)} facturado histórico
+          </p>
         </div>
         <button onClick={() => openModal()} className="bg-primary hover:bg-primaryDark text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-lg text-sm">
           <Plus size={18} /> Nuevo Cliente
@@ -94,36 +102,48 @@ const Clientes = () => {
           className="w-full bg-background border border-stone-700 rounded-lg pl-9 pr-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary" />
       </div>
 
-      <div className="bg-surface rounded-xl border border-stone-800 overflow-hidden">
-        <table className="w-full text-left text-sm text-textLight">
+      <div className="bg-surface rounded-xl border border-stone-800 overflow-x-auto">
+        <table className="w-full text-left text-sm text-textLight min-w-[640px]">
           <thead className="bg-stone-900/50 text-xs text-textMuted uppercase border-b border-stone-800">
             <tr>
               <th className="px-4 py-3">Nombre</th>
-              <th className="px-4 py-3">Teléfono</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Dirección</th>
+              <th className="px-4 py-3 hidden sm:table-cell">Teléfono</th>
+              <th className="px-4 py-3 hidden lg:table-cell">Email</th>
+              <th className="px-4 py-3 text-center">Compras</th>
+              <th className="px-4 py-3 text-right">Total gastado</th>
+              <th className="px-4 py-3 text-right hidden md:table-cell">Última compra</th>
               <th className="px-4 py-3 text-center">Estado</th>
-              <th className="px-4 py-3 text-center w-24">Acciones</th>
+              <th className="px-4 py-3 text-center w-28">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-800">
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-12 text-center text-textMuted">No hay clientes</td></tr>
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-textMuted">No hay clientes</td></tr>
             )}
             {filtered.map(c => (
               <tr key={c._id} className={`hover:bg-stone-800/40 transition-colors ${!c.activo ? 'opacity-50' : ''}`}>
-                <td className="px-4 py-3 font-medium">{c.nombre}</td>
-                <td className="px-4 py-3">{c.telefono || '—'}</td>
-                <td className="px-4 py-3 text-textMuted">{c.email || '—'}</td>
-                <td className="px-4 py-3 text-textMuted">{c.direccion || '—'}</td>
+                <td className="px-4 py-3">
+                  <div className="font-medium">{c.nombre}</div>
+                  <div className="text-xs text-textMuted lg:hidden">{c.telefono || '—'}</div>
+                </td>
+                <td className="px-4 py-3 hidden sm:table-cell">{c.telefono || '—'}</td>
+                <td className="px-4 py-3 text-textMuted hidden lg:table-cell">{c.email || '—'}</td>
+                <td className="px-4 py-3 text-center">
+                  <span className="inline-flex items-center gap-1 text-textMuted">
+                    <Receipt size={12} /> {c.totalCompras || 0}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right font-semibold">{formatCurrency(c.totalGastado)}</td>
+                <td className="px-4 py-3 text-right text-textMuted text-xs hidden md:table-cell">{formatDate(c.ultimaCompra)}</td>
                 <td className="px-4 py-3 text-center">
                   <span className={`text-xs font-bold ${c.activo ? 'text-emerald-400' : 'text-red-400'}`}>
                     {c.activo ? 'Activo' : 'Inactivo'}
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center justify-center gap-2">
-                    <button onClick={() => openModal(c)} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"><Edit3 size={15} /></button>
+                  <div className="flex items-center justify-center gap-1.5">
+                    <button onClick={() => navigate(`/clientes/${c._id}`)} title="Ver todas las compras" className="p-1.5 text-primary hover:bg-primary/10 rounded-lg transition-colors"><History size={15} /></button>
+                    <button onClick={() => openModal(c)} className="p-1.5 text-textMuted hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"><Edit3 size={15} /></button>
                     <button onClick={() => handleDelete(c._id)} className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"><Trash2 size={15} /></button>
                   </div>
                 </td>

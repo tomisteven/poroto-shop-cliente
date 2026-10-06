@@ -20,6 +20,7 @@ import DailySales from './pages/DailySales';
 import RVentas from './pages/RVentas';
 import Gestion from './pages/Gestion';
 import Clientes from './pages/Clientes';
+import ClienteHistorial from './pages/ClienteHistorial';
 import Proveedores from './pages/Proveedores';
 import OrdenesCompra from './pages/OrdenesCompra';
 import Gastos from './pages/Gastos';
@@ -72,6 +73,7 @@ function App() {
               <Route path="rventas" element={<RVentas />} />
               <Route path="gestion" element={<Gestion />} />
               <Route path="clientes" element={<Clientes />} />
+              <Route path="clientes/:id" element={<ClienteHistorial />} />
               <Route path="proveedores" element={<Proveedores />} />
               <Route path="ordenes-compra" element={<OrdenesCompra />} />
               <Route path="gastos" element={<Gastos />} />
