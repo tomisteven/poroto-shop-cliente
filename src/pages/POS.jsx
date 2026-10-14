@@ -10,6 +10,13 @@ import toast from 'react-hot-toast';
 const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 const formatCurrency = (val) => arsFormat.format(val);
 
+const pad2 = (n) => String(n).padStart(2, '0');
+const toLocalDateTimeInput = (d) => {
+   if (!d || isNaN(d.getTime())) return '';
+   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+const fechaLocalHoy = () => toLocalDateTimeInput(new Date()).slice(0, 10);
+
 const ProductCard = React.memo(function ProductCard({ p, qty, onOpenCustom, onAdd, onQuickAdd }) {
    const sinStock = (Number(p.stock) || 0) <= 0 && !((Number(p.gramosBolsaAbierta) || 0) > 0);
 
@@ -97,6 +104,7 @@ const POS = () => {
    const [metodoPago, setMetodoPago] = useState('efectivo');
    const [montoRecibido, setMontoRecibido] = useState('');
    const [notas, setNotas] = useState('');
+   const [fechaVenta, setFechaVenta] = useState(() => toLocalDateTimeInput(new Date()));
   const [budgetName, setBudgetName] = useState('');
    const [budgetPhone, setBudgetPhone] = useState('');
    const [budgetNotas, setBudgetNotas] = useState('');
@@ -252,7 +260,8 @@ const POS = () => {
             metodoPago,
             notas: notas.trim() || undefined,
             montoPagado: metodoPago === 'efectivo' && montoRecibido ? parseFloat(montoRecibido) : cartTotal,
-            cliente: selectedCustomer?._id
+            cliente: selectedCustomer?._id,
+            fecha: fechaVenta ? new Date(fechaVenta).toISOString() : undefined
          };
 
          await api.post('/sales', payload);
@@ -260,9 +269,11 @@ const POS = () => {
          setMetodoPago('efectivo');
          setMontoRecibido('');
          setNotas('');
+         setFechaVenta(toLocalDateTimeInput(new Date()));
          setShowCartSheet(false);
          fetchProducts();
-         toast.success('Venta registrada con éxito');
+         const esOtroDia = (fechaVenta || '').slice(0, 10) !== fechaLocalHoy();
+         toast.success(esOtroDia ? 'Venta registrada en la fecha seleccionada' : 'Venta registrada con éxito');
       } catch (error) {
          toast.error(error.response?.data?.message || 'Error al procesar la venta');
       }
@@ -390,6 +401,20 @@ const fmtMoneda = formatCurrency;
                   onChange={(e) => setDiscount(Number(e.target.value))}
                   className="w-14 bg-surface border border-stone-700 rounded text-right px-2 py-1 text-xs md:text-sm text-textLight focus:outline-none focus:border-primary"
                />
+            </div>
+
+            <div className="mb-2.5">
+               <label className="text-xs text-textMuted block mb-1">Fecha y hora de la venta</label>
+               <input
+                  type="datetime-local"
+                  value={fechaVenta}
+                  max={toLocalDateTimeInput(new Date())}
+                  onChange={(e) => setFechaVenta(e.target.value)}
+                  className="w-full bg-surface border border-stone-700 rounded-lg px-2.5 py-2 text-xs text-textLight focus:outline-none focus:border-primary"
+               />
+               <p className="text-[10px] text-textMuted mt-1">
+                  Podés cargar ventas de días anteriores: se suman a ese día.
+               </p>
             </div>
 
             <div className="mb-2.5 grid grid-cols-2 gap-2 items-end">

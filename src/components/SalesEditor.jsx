@@ -7,6 +7,13 @@ import toast from 'react-hot-toast';
 const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 const formatCurrency = (val) => arsFormat.format(val);
 
+const pad2 = (n) => String(n).padStart(2, '0');
+const toLocalDateTimeInput = (d) => {
+   if (!d || isNaN(new Date(d).getTime())) return '';
+   const dt = new Date(d);
+   return `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}T${pad2(dt.getHours())}:${pad2(dt.getMinutes())}`;
+};
+
 const SalesEditor = ({ sale, onClose, onSaved }) => {
   const [lines, setLines] = useState([]);
   const [products, setProducts] = useState([]);
@@ -18,6 +25,7 @@ const SalesEditor = ({ sale, onClose, onSaved }) => {
   const [metodoPago, setMetodoPago] = useState('efectivo');
   const [montoPagado, setMontoPagado] = useState('');
   const [notas, setNotas] = useState('');
+  const [fechaVenta, setFechaVenta] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,6 +85,7 @@ const SalesEditor = ({ sale, onClose, onSaved }) => {
         setMetodoPago(full.metodoPago || 'efectivo');
         setMontoPagado(full.montoPagado != null ? String(full.montoPagado) : '');
         setNotas(full.notas || '');
+        setFechaVenta(full.fecha ? toLocalDateTimeInput(full.fecha) : toLocalDateTimeInput(new Date()));
         setLoading(false);
       })
       .catch(() => {
@@ -193,6 +202,7 @@ const SalesEditor = ({ sale, onClose, onSaved }) => {
         metodoPago,
         montoPagado: isNaN(numPagado) ? totalFinal : numPagado,
         notas,
+        fecha: fechaVenta ? new Date(fechaVenta).toISOString() : undefined,
       });
       toast.success('Venta editada correctamente');
       onSaved();
@@ -314,6 +324,17 @@ const SalesEditor = ({ sale, onClose, onSaved }) => {
               </div>
 
               <div className="p-4 border-t border-stone-800 space-y-3 shrink-0">
+                <div>
+                  <label className="block text-xs font-medium text-textMuted mb-1">Fecha y hora de la venta</label>
+                  <input
+                    type="datetime-local"
+                    value={fechaVenta}
+                    max={toLocalDateTimeInput(new Date())}
+                    onChange={(e) => setFechaVenta(e.target.value)}
+                    className="w-full bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
+                  />
+                  <p className="text-[10px] text-textMuted mt-1">Podés mover la venta a otro día: los reportes de ese día se actualizan.</p>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-textMuted mb-1">Descuento (%)</label>

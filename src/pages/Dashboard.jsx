@@ -31,6 +31,15 @@ const formatHours = (iso) => {
   return `${fecha} · ${hora}`;
 };
 
+const formatTimeAgo = (iso) => {
+  if (!iso) return '';
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return 'recién';
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.floor(min / 60);
+  return `hace ${h} h`;
+};
+
 const now = new Date();
 const greeting = () => {
   const h = now.getHours();
@@ -187,6 +196,7 @@ const Dashboard = () => {
   const [recentSales, setRecentSales] = useState([]);
   const [showRecentSales, setShowRecentSales] = useState(true);
   const [refreshingSales, setRefreshingSales] = useState(false);
+  const [unreadOrders, setUnreadOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('top');
   const [showCashClose, setShowCashClose] = useState(false);
@@ -264,6 +274,13 @@ const Dashboard = () => {
     return () => clearInterval(intervalo);
   }, []);
 
+  useEffect(() => {
+    // revisa pedidos nuevos del catálogo cada 15 segundos
+    cargarPedidosNuevos();
+    const t = setInterval(cargarPedidosNuevos, 15000);
+    return () => clearInterval(t);
+  }, []);
+
   const handleShareCatalog = () => {
     const url = window.location.origin + '/catalogo';
     navigator.clipboard.writeText(url);
@@ -279,6 +296,25 @@ const Dashboard = () => {
       toast.error('No se pudieron actualizar las ventas');
     } finally {
       setRefreshingSales(false);
+    }
+  };
+
+  const cargarPedidosNuevos = async () => {
+    try {
+      const { data } = await api.get('/orders/unread-list?limit=5');
+      setUnreadOrders(Array.isArray(data) ? data : []);
+    } catch {
+      // silencioso: la próxima pasada reintenta
+    }
+  };
+
+  const marcarPedidosLeidos = async () => {
+    try {
+      await Promise.all(unreadOrders.map(o => api.patch(`/orders/${o._id}/read`)));
+      setUnreadOrders([]);
+      toast.success('Pedidos marcados como leídos');
+    } catch {
+      toast.error('No se pudieron marcar los pedidos');
     }
   };
 
@@ -375,6 +411,60 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
+
+      {/* Aviso de pedidos nuevos del catálogo */}
+      {unreadOrders.length > 0 && (
+        <section className="bg-gradient-to-r from-primary/20 via-primary/10 to-primary/5 border border-primary/30 rounded-2xl p-3.5">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-white shrink-0">
+                  <ShoppingBag size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-textLight">
+                    {unreadOrders.length === 1
+                      ? '¡Tenés 1 pedido nuevo del catálogo!'
+                      : `¡Tenés ${unreadOrders.length} pedidos nuevos del catálogo!`}
+                  </p>
+                  <p className="text-xs text-textMuted truncate">Se actualiza automáticamente cada 15 segundos</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={marcarPedidosLeidos}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-stone-700/60 text-xs font-medium text-textLight transition-colors"
+                >
+                  Marcar como leídos
+                </button>
+                <Link
+                  to="/orders"
+                  className="px-3 py-1.5 rounded-lg bg-primary hover:bg-primaryDark text-xs font-bold text-white transition-colors"
+                >
+                  Ver pedidos
+                </Link>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              {unreadOrders.map(o => (
+                <Link
+                  key={o._id}
+                  to="/orders"
+                  className="flex items-center gap-3 bg-surface/60 border border-stone-800/60 rounded-lg px-3 py-2 hover:border-primary/40 transition-colors"
+                >
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse shrink-0" />
+                  <span className="text-xs font-bold text-textLight font-mono">{o.numero}</span>
+                  <span className="text-xs text-textLight truncate">{o.cliente && o.cliente.nombre ? o.cliente.nombre : o.clienteNombre}</span>
+                  <span className="text-xs text-textMuted hidden sm:inline">{o.items.length} {o.items.length === 1 ? 'producto' : 'productos'}</span>
+                  <span className="text-xs font-bold text-primary ml-auto shrink-0">{formatCurrency(o.total)}</span>
+                  <span className="text-[11px] text-textMuted hidden md:inline shrink-0">{formatTimeAgo(o.createdAt)}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
