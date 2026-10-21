@@ -6,6 +6,7 @@ import {
    Search, Plus, Minus, Trash2, Tag, ShoppingCart, XCircle, FileText, Sparkles, User, UserPlus, Award, X, Pencil, PackagePlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { calcularDeduccionesPago, getPaymentMethodLabel } from '../utils/paymentFees';
 
 const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 const formatCurrency = (val) => arsFormat.format(val);
@@ -328,6 +329,8 @@ const POS = () => {
 
 const fmtMoneda = formatCurrency;
 
+   const deduccionesPago = calcularDeduccionesPago(metodoPago, cartTotal);
+
    const getPricePerKg = (p, margin) => {
       const base = (p.precioKilo && p.precioKilo > 0) ? Number(p.precioKilo) : (p.precioVenta / p.kilosPorBolsa);
       return base * (1 + ((margin ?? 0) / 100));
@@ -422,10 +425,11 @@ const fmtMoneda = formatCurrency;
                   <select
                      value={metodoPago}
                      onChange={(e) => setMetodoPago(e.target.value)}
-                     className="w-full bg-surface border border-stone-700 rounded-lg px-2 py-2 text-xs font-semibold capitalize text-textLight focus:outline-none focus:border-primary cursor-pointer md:hidden"
+                     className="w-full bg-surface border border-stone-700 rounded-lg px-2 py-2 text-xs font-semibold text-textLight focus:outline-none focus:border-primary cursor-pointer md:hidden"
                   >
                      <option value="efectivo">Efectivo</option>
-                     <option value="tarjeta">Tarjeta</option>
+                     <option value="tarjeta">Tarjeta crédito</option>
+                     <option value="tarjeta_debito">Tarjeta débito</option>
                      <option value="transferencia">Transferencia</option>
                   </select>
                   {metodoPago === 'efectivo' && cartItems.length > 0 && (
@@ -454,14 +458,14 @@ const fmtMoneda = formatCurrency;
 
             <div className="hidden md:block mb-4">
                <label className="text-xs text-textMuted block mb-1">Método de Pago</label>
-               <div className="grid grid-cols-3 gap-2">
-                  {['efectivo', 'tarjeta', 'transferencia'].map(m => (
+               <div className="grid grid-cols-2 gap-2">
+                  {['efectivo', 'tarjeta', 'tarjeta_debito', 'transferencia'].map(m => (
                      <button
                         key={m}
                         onClick={() => setMetodoPago(m)}
-                        className={`py-2 rounded-lg text-xs font-semibold capitalize transition-colors border ${metodoPago === m ? 'bg-primary/20 border-primary text-primary' : 'bg-surface border-stone-700 text-textMuted hover:border-stone-500'}`}
+                        className={`py-2 rounded-lg text-xs font-semibold transition-colors border ${metodoPago === m ? 'bg-primary/20 border-primary text-primary' : 'bg-surface border-stone-700 text-textMuted hover:border-stone-500'}`}
                      >
-                        {m}
+                        {getPaymentMethodLabel(m)}
                      </button>
                   ))}
                </div>
@@ -492,6 +496,27 @@ const fmtMoneda = formatCurrency;
                   </div>
                )}
             </div>
+
+            {deduccionesPago.tieneDeducciones && cartItems.length > 0 && (
+               <div className="mb-2.5 bg-stone-900/60 border border-stone-800 rounded-lg px-3 py-2 text-[11px] space-y-1">
+                  <div className="flex justify-between text-textMuted">
+                     <span>Comisión Mercado Pago ({deduccionesPago.porcentajeMP}%)</span>
+                     <span className="text-textLight font-semibold">-{fmtMoneda(deduccionesPago.comisionMP)}</span>
+                  </div>
+                  <div className="flex justify-between text-textMuted">
+                     <span>Retención IIBB ({deduccionesPago.porcentajeIIBB}%)</span>
+                     <span className="text-textLight font-semibold">-{fmtMoneda(deduccionesPago.retencionIIBB)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-stone-800 pt-1 text-amber-400 font-bold">
+                     <span>Impuestos totales</span>
+                     <span>-{fmtMoneda(deduccionesPago.impuestosPago)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-400 font-bold">
+                     <span>Neto a recibir</span>
+                     <span>{fmtMoneda(deduccionesPago.totalNeto)}</span>
+                  </div>
+               </div>
+            )}
 
             {/* Notas */}
             <input

@@ -1248,9 +1248,19 @@ const Dashboard = () => {
                     <span className="text-sm font-bold text-textLight">{formatCurrency(cashClose.ventas.tarjeta)}</span>
                   </div>
                   <div className="flex items-center justify-between">
+                    <span className="text-sm text-textMuted">Tarjeta débito</span>
+                    <span className="text-sm font-bold text-textLight">{formatCurrency(cashClose.ventas.tarjeta_debito || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
                     <span className="text-sm text-textMuted">Transferencia</span>
                     <span className="text-sm font-bold text-textLight">{formatCurrency(cashClose.ventas.transferencia)}</span>
                   </div>
+                  {(cashClose.impuestos || 0) > 0 && (
+                    <div className="flex items-center justify-between border-t border-stone-700 pt-2">
+                      <span className="text-sm text-amber-400 font-bold">Impuestos del día</span>
+                      <span className="text-sm font-extrabold text-amber-400">-{formatCurrency(cashClose.impuestos)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between border-t border-stone-700 pt-2">
                     <span className="text-sm text-emerald-400 font-bold">Efectivo en Caja</span>
                     <span className="text-sm font-extrabold text-emerald-400">{formatCurrency(cashClose.ventas.efectivoEnCaja)}</span>

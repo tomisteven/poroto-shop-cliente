@@ -16,6 +16,7 @@ import Reports from './pages/Reports';
 import Stock from './pages/Stock';
 import Users from './pages/Users';
 import Statistics from './pages/Statistics';
+import Impuestos from './pages/Impuestos';
 import DailySales from './pages/DailySales';
 import RVentas from './pages/RVentas';
 import Gestion from './pages/Gestion';
@@ -69,6 +70,7 @@ function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="stock" element={<Stock />} />
               <Route path="statistics" element={<Statistics />} />
+              <Route path="impuestos" element={<Impuestos />} />
               <Route path="statistics/day/:date" element={<DailySales />} />
               <Route path="rventas" element={<RVentas />} />
               <Route path="gestion" element={<Gestion />} />

@@ -93,6 +93,15 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove, lista = false }) => {
   const vendeSuelto = soldByKg || (p.precioKilo && p.precioKilo > 0);
   const bagCart = cart.find((i) => i.producto === p._id && i.tipo === 'bag');
   const kiloCart = cart.find((i) => i.producto === p._id && i.tipo === 'kilo');
+  const [descOpen, setDescOpen] = useState(false);
+  const typeLabel = soldByKg
+    ? 'Venta por kilo'
+    : p.esCombo
+      ? 'Combo'
+      : p.unidadMedida && p.unidadMedida !== 'unidad'
+        ? `Venta por ${p.unidadMedida}`
+        : '';
+  const desc = (p.descripcion || '').trim();
 
   const inCartControls = (item, label) => (
     <div className="flex items-center justify-between bg-orange-900/30 rounded-lg px-3 py-2 border border-orange-500/30">
@@ -213,36 +222,60 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove, lista = false }) => {
 
     return (
       <div className="group bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden hover:border-orange-500/40 transition-all">
-        <div className="px-4 py-3 flex items-center gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-white truncate">{p.nombre}</h3>
-              {p.categoria && (
-                <span
-                  className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md"
-                  style={{
-                    backgroundColor: p.categoria.color ? `${p.categoria.color}30` : 'rgba(0,0,0,0.5)',
-                    color: p.categoria.color || '#ccc',
-                    border: `1px solid ${p.categoria.color ? `${p.categoria.color}40` : 'rgba(255,255,255,0.1)'}`,
-                  }}
-                >
-                  {p.categoria.nombre}
-                </span>
+        <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {p.imagen && (
+              <img
+                src={p.imagen}
+                alt={p.nombre}
+                loading="lazy"
+                className="w-14 h-14 rounded-lg object-cover shrink-0 bg-[#222]"
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h3 className="text-sm font-semibold text-white leading-snug break-words">{p.nombre}</h3>
+                {p.categoria && (
+                  <span
+                    className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md"
+                    style={{
+                      backgroundColor: p.categoria.color ? `${p.categoria.color}30` : 'rgba(0,0,0,0.5)',
+                      color: p.categoria.color || '#ccc',
+                      border: `1px solid ${p.categoria.color ? `${p.categoria.color}40` : 'rgba(255,255,255,0.1)'}`,
+                    }}
+                  >
+                    {p.categoria.nombre}
+                  </span>
+                )}
+              </div>
+              {(typeLabel || p.stock <= 0) && (
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {typeLabel}
+                  {p.stock <= 0 && <span className="text-neutral-600 font-medium"> · Agotado</span>}
+                </p>
+              )}
+              {desc && (
+                <div className="mt-0.5">
+                  <p className={`text-xs text-neutral-400 leading-relaxed ${descOpen ? '' : 'line-clamp-1'}`}>
+                    {desc}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setDescOpen((o) => !o)}
+                    className="text-[11px] font-semibold text-orange-400 hover:text-orange-300 mt-0.5"
+                  >
+                    {descOpen ? 'Ver menos' : 'Ver más'}
+                  </button>
+                </div>
+              )}
+              {!desc && !typeLabel && p.stock > 0 && (
+                <p className="text-xs text-neutral-600 mt-0.5">Producto</p>
               )}
             </div>
-            <p className="text-xs text-neutral-500 mt-0.5 truncate">
-              {soldByKg
-                ? 'Venta por kilo'
-                : p.esCombo
-                  ? 'Combo'
-                  : p.unidadMedida && p.unidadMedida !== 'unidad'
-                    ? `Venta por ${p.unidadMedida}`
-                    : p.descripcion || 'Producto'}
-              {p.stock <= 0 && <span className="text-neutral-600 font-medium"> · Agotado</span>}
-            </p>
           </div>
 
-          <div className="shrink-0 flex flex-col items-end gap-2">
+          <div className="flex flex-col items-stretch gap-2 sm:shrink-0 sm:items-end">
             {precio}
             {acciones}
           </div>
@@ -260,14 +293,9 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove, lista = false }) => {
             src={p.imagen}
             alt={p.nombre}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         ) : null}
-        <div
-          className={`${p.imagen ? 'hidden' : 'flex'} w-full h-full items-center justify-center bg-gradient-to-br from-[#1a1a1a] to-[#222]`}
-        >
-          <PawPrint size={40} className="text-[#333]" />
-        </div>
 
         {/* Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5">

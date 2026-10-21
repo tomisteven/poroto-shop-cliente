@@ -15,7 +15,8 @@ const formatDateTime = (d) => (d ? new Date(d).toLocaleString('es-AR', { day: '2
 const METODOS = [
   { value: '', label: 'Todos los pagos' },
   { value: 'efectivo', label: 'Efectivo' },
-  { value: 'tarjeta', label: 'Tarjeta' },
+  { value: 'tarjeta', label: 'Tarjeta crédito' },
+  { value: 'tarjeta_debito', label: 'Tarjeta débito' },
   { value: 'transferencia', label: 'Transferencia' },
 ];
 

@@ -35,7 +35,8 @@ import {
   Bot,
   MessageSquare,
   Settings,
-  Banknote
+  Banknote,
+  Percent
 } from 'lucide-react';
 
 const UPDATES = [
@@ -220,6 +221,7 @@ const buildMenuGroups = (isAdmin) => {
       items: [
         { name: 'Reportes', path: '/reports', icon: BarChart3 },
         { name: 'Estadísticas', path: '/statistics', icon: PieChart },
+        { name: 'Pago de Impuestos', path: '/impuestos', icon: Percent },
         { name: 'Analizar Productos', path: '/analisis-productos', icon: TrendingUp },
       ],
     },

@@ -130,6 +130,13 @@ const SalesHeatmap = ({ data }) => {
                     </div>
                     <div className="flex items-center justify-between text-[10px] font-bold">
                       <div className="flex items-center gap-1 opacity-70">
+                        <CreditCard size={10} />
+                        <span>DEB</span>
+                      </div>
+                      <span>{formatCurrency(day.tarjetaDebito || 0)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-bold">
+                      <div className="flex items-center gap-1 opacity-70">
                         <ArrowRightLeft size={10} />
                         <span>TRA</span>
                       </div>

@@ -7,6 +7,7 @@ import {
   Calendar as CalendarIcon, User as UserIcon, CreditCard
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getPaymentMethodLabel } from '../utils/paymentFees';
 
 const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val);
 
@@ -48,10 +49,11 @@ const DailySales = () => {
       // Totales por método de pago para el resumen
       if (sale.metodoPago === 'efectivo') acc.efectivo += sale.totalFinal;
       if (sale.metodoPago === 'tarjeta') acc.tarjeta += sale.totalFinal;
+      if (sale.metodoPago === 'tarjeta_debito') acc.tarjeta_debito += sale.totalFinal;
       if (sale.metodoPago === 'transferencia') acc.transferencia += sale.totalFinal;
     }
     return acc;
-  }, { total: 0, count: 0, efectivo: 0, tarjeta: 0, transferencia: 0 });
+  }, { total: 0, count: 0, efectivo: 0, tarjeta: 0, tarjeta_debito: 0, transferencia: 0 });
 
   return (
     <div className="space-y-6 flex flex-col h-full animate-in fade-in duration-500">
@@ -97,6 +99,10 @@ const DailySales = () => {
                     <p className="text-xs font-black text-textLight">{formatCurrency(totals.tarjeta)}</p>
                   </div>
                   <div>
+                    <p className="text-[8px] text-textMuted font-bold uppercase">Débito</p>
+                    <p className="text-xs font-black text-textLight">{formatCurrency(totals.tarjeta_debito)}</p>
+                  </div>
+                  <div>
                     <p className="text-[8px] text-textMuted font-bold uppercase">Transf.</p>
                     <p className="text-xs font-black text-textLight">{formatCurrency(totals.transferencia)}</p>
                   </div>
@@ -108,7 +114,7 @@ const DailySales = () => {
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 bg-stone-900/50 p-1.5 rounded-2xl border border-stone-800 self-start">
-        {['todos', 'efectivo', 'tarjeta', 'transferencia'].map((m) => (
+        {['todos', 'efectivo', 'tarjeta', 'tarjeta_debito', 'transferencia'].map((m) => (
           <button
             key={m}
             onClick={() => setPaymentFilter(m)}
@@ -118,7 +124,7 @@ const DailySales = () => {
                 : 'text-textMuted hover:text-white hover:bg-stone-800'
             }`}
           >
-            {m === 'todos' ? 'Ver Todas' : m}
+            {m === 'todos' ? 'Ver Todas' : getPaymentMethodLabel(m)}
           </button>
         ))}
       </div>

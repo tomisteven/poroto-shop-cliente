@@ -1135,6 +1135,30 @@ onOpenEdit={openEditModal}
                     <p className="text-[10px] text-textMuted mt-1">Aclaraciones que la IA tendrá en cuenta al generar la descripción</p>
                   </div>
 
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-textMuted mb-2">Imagen del producto (URL)</label>
+                    <div className="flex items-start gap-3">
+                      <input
+                        name="imagen"
+                        value={formData.imagen || ''}
+                        onChange={handleInputChange}
+                        type="text"
+                        placeholder="https://ejemplo.com/imagen.jpg"
+                        className="flex-1 bg-background border border-stone-700 rounded-lg px-4 py-2 text-textLight focus:ring-1 focus:ring-primary focus:outline-none text-sm"
+                      />
+                      {(formData.imagen || '').trim() !== '' && (
+                        <img
+                          key={formData.imagen}
+                          src={formData.imagen}
+                          alt="Vista previa"
+                          className="w-16 h-16 rounded-lg object-cover bg-background border border-stone-700 shrink-0"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      )}
+                    </div>
+                    <p className="text-[10px] text-textMuted mt-1">Pegá el enlace directo de la imagen (o base64). Si está vacío o falla, el catálogo no muestra nada. El POS no muestra imágenes.</p>
+                  </div>
+
                   {/* Espacio reservado para centrar */}
                 </form>
             </div>

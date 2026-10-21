@@ -14,6 +14,8 @@ const formatNum = (val) => (val || 0).toLocaleString('es-AR', { maximumFractionD
 
 const PERIODOS = [7, 30, 90, 180, 365];
 
+const toYMD = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+
 const Card = ({ icon, label, value, sub, gradient }) => {
   const Icon = icon;
   return (
@@ -33,6 +35,13 @@ const Card = ({ icon, label, value, sub, gradient }) => {
 export default function AnalisisVentas() {
   const [dias, setDias] = useState(90);
   const [ciclo10, setCiclo10] = useState(false);
+  const [custom, setCustom] = useState(false);
+  const [desde, setDesde] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 89);
+    return toYMD(d);
+  });
+  const [hasta, setHasta] = useState(() => toYMD(new Date()));
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -70,13 +79,15 @@ export default function AnalisisVentas() {
   }, []);
 
   const runCurrent = useCallback(() => {
-    if (ciclo10) {
+    if (custom && desde && hasta && desde <= hasta) {
+      runAnalysis({ desde, hasta });
+    } else if (ciclo10) {
       runAnalysis(computeCycle10());
     } else {
       runAnalysis({ dias });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ciclo10, dias, runAnalysis]);
+  }, [custom, desde, hasta, ciclo10, dias, runAnalysis]);
 
   useEffect(() => {
     runCurrent();
@@ -86,12 +97,26 @@ export default function AnalisisVentas() {
   const handleDias = (d) => {
     setDias(d);
     setCiclo10(false);
+    setCustom(false);
     runAnalysis({ dias: d });
   };
 
   const handleCiclo10 = () => {
     setCiclo10(true);
+    setCustom(false);
     runAnalysis(computeCycle10());
+  };
+
+  const handleCustom = () => {
+    setCiclo10(false);
+    setCustom(true);
+  };
+
+  const runCustomRange = () => {
+    if (!desde || !hasta || desde > hasta) return;
+    setCiclo10(false);
+    setCustom(true);
+    runAnalysis({ desde, hasta });
   };
 
   const chartDias = (data?.diasSemana || []).map((d) => ({
@@ -132,7 +157,7 @@ export default function AnalisisVentas() {
                   key={p}
                   onClick={() => handleDias(p)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                    !ciclo10 && dias === p ? 'bg-primary text-white' : 'text-textMuted hover:text-textLight'
+                    !ciclo10 && !custom && dias === p ? 'bg-primary text-white' : 'text-textMuted hover:text-textLight'
                   }`}
                 >
                   {p} días
@@ -145,6 +170,14 @@ export default function AnalisisVentas() {
                 }`}
               >
                 Del 10 al 10
+              </button>
+              <button
+                onClick={handleCustom}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  custom ? 'bg-primary text-white' : 'text-textMuted hover:text-textLight'
+                }`}
+              >
+                Fechas
               </button>
             </div>
             <button
@@ -164,6 +197,44 @@ export default function AnalisisVentas() {
             </button>
           </div>
         </div>
+
+        {/* Selección de rango de fechas personalizado */}
+        {custom && (
+          <div className="flex flex-wrap items-end gap-3 bg-surface rounded-xl border border-stone-800 p-3 print:hidden">
+            <div>
+              <label className="block text-[11px] font-bold uppercase text-textMuted mb-1">Desde</label>
+              <input
+                type="date"
+                value={desde}
+                max={hasta || toYMD(new Date())}
+                onChange={(e) => setDesde(e.target.value)}
+                className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold uppercase text-textMuted mb-1">Hasta</label>
+              <input
+                type="date"
+                value={hasta}
+                min={desde}
+                max={toYMD(new Date())}
+                onChange={(e) => setHasta(e.target.value)}
+                className="bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
+              />
+            </div>
+            <button
+              onClick={runCustomRange}
+              disabled={loading || !desde || !hasta || desde > hasta}
+              className="flex items-center gap-2 bg-primary hover:bg-primaryDark text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <Calendar className="w-4 h-4" />
+              Analizar rango
+            </button>
+            {desde > hasta && (
+              <p className="text-red-400 text-xs">La fecha "desde" no puede ser mayor que "hasta".</p>
+            )}
+          </div>
+        )}
 
         {/* Loading */}
         {loading && (

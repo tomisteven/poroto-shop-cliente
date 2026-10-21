@@ -3,6 +3,7 @@ import api from '../api/axios';
 import { useDebounce } from '../hooks/useDebounce';
 import { X, Search, Plus, Minus, Trash2, Tag, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { calcularDeduccionesPago } from '../utils/paymentFees';
 
 const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 const formatCurrency = (val) => arsFormat.format(val);
@@ -100,6 +101,11 @@ const SalesEditor = ({ sale, onClose, onSaved }) => {
     const sub = lines.reduce((acc, l) => acc + l.precioVenta * l.cantidad, 0);
     return { subtotal: sub, totalFinal: sub - sub * (descuento / 100) };
   }, [lines, descuento]);
+
+  const deduccionesPago = useMemo(
+    () => calcularDeduccionesPago(metodoPago, totalFinal),
+    [metodoPago, totalFinal]
+  );
 
   const filteredProducts = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
@@ -355,7 +361,8 @@ const SalesEditor = ({ sale, onClose, onSaved }) => {
                       className="w-full bg-background border border-stone-700 rounded-lg px-3 py-2 text-sm text-textLight focus:outline-none focus:border-primary"
                     >
                       <option value="efectivo">Efectivo</option>
-                      <option value="tarjeta">Tarjeta</option>
+                      <option value="tarjeta">Tarjeta crédito</option>
+                      <option value="tarjeta_debito">Tarjeta débito</option>
                       <option value="transferencia">Transferencia</option>
                     </select>
                   </div>
@@ -390,6 +397,14 @@ const SalesEditor = ({ sale, onClose, onSaved }) => {
                       <p>Desc {descuento}%: <span className="font-semibold text-red-400">-{formatCurrency(subtotal * descuento / 100)}</span></p>
                     )}
                     <p className="text-base font-bold text-textLight">TOTAL: {formatCurrency(totalFinal)}</p>
+                    {deduccionesPago.tieneDeducciones && (
+                      <div className="text-amber-400 space-y-0.5 pt-1">
+                        <p className="text-[11px]">Comisión MP ({deduccionesPago.porcentajeMP}%): <span className="font-semibold">-{formatCurrency(deduccionesPago.comisionMP)}</span></p>
+                        <p className="text-[11px]">Retención IIBB ({deduccionesPago.porcentajeIIBB}%): <span className="font-semibold">-{formatCurrency(deduccionesPago.retencionIIBB)}</span></p>
+                        <p className="text-xs font-bold">Impuestos: -{formatCurrency(deduccionesPago.impuestosPago)}</p>
+                        <p className="text-xs font-bold text-emerald-400">Neto: {formatCurrency(deduccionesPago.totalNeto)}</p>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={onClose} className="px-4 py-2.5 rounded-lg bg-stone-800 text-textLight hover:bg-stone-700 transition-colors text-sm font-semibold">Cancelar</button>

@@ -370,6 +370,7 @@ const Reports = () => {
                       <th className="px-4 py-3 text-right">Balance</th>
                       <th className="px-4 py-3 text-right">Efectivo</th>
                       <th className="px-4 py-3 text-right">Tarjeta</th>
+                      <th className="px-4 py-3 text-right">Débito</th>
                       <th className="px-4 py-3 text-right">Transf.</th>
                     </tr>
                   </thead>
@@ -388,6 +389,7 @@ const Reports = () => {
                         </td>
                         <td className="px-4 py-3 text-right text-textMuted text-xs">{formatCurrency(d.efectivo)}</td>
                         <td className="px-4 py-3 text-right text-textMuted text-xs">{formatCurrency(d.tarjeta)}</td>
+                        <td className="px-4 py-3 text-right text-textMuted text-xs">{formatCurrency(d.tarjeta_debito || 0)}</td>
                         <td className="px-4 py-3 text-right text-textMuted text-xs">{formatCurrency(d.transferencia)}</td>
                       </tr>
                     ))}
