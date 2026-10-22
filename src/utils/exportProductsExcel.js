@@ -140,23 +140,31 @@ export const exportProductsToExcel = async ({ conPrecio = false } = {}) => {
   return { grupos: groups.map((g) => g.nombre), total: lista.length, conPrecio };
 };
 
-// Exportación plana: una sola hoja, solo Producto + Precio Venta, uno debajo del otro.
+// Exportación plana: una sola hoja, Producto + Precio Venta (+ Precio por Kilo si es fraccionado), uno debajo del otro.
 export const exportPreciosVentaExcel = async () => {
   const { data } = await api.get('/products');
   const lista = (data || [])
-    .filter((p) => (Number(p.precioVenta) || 0) > 0)
+    .filter((p) => (Number(p.precioVenta) || 0) > 0 || (Number(p.precioKilo) || 0) > 0)
     .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
 
   if (lista.length === 0) throw new Error('No hay productos con precio de venta');
 
-  const headers = ['Producto', 'Precio Venta'];
-  const rows = lista.map((p) => [text(p.nombre), money(p.precioVenta)]);
+  const headers = ['Producto', 'Precio Venta', 'Precio por Kilo'];
+  const rows = lista.map((p) => {
+    const venta = Number(p.precioVenta) || 0;
+    const precioKilo = Number(p.precioKilo) || 0;
+    return [
+      text(p.nombre),
+      venta > 0 ? money(venta) : text('', { center: true }),
+      precioKilo > 0 ? money(precioKilo) : text('', { center: true }),
+    ];
+  });
 
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   headers.forEach((_, i) => {
     ws[XLSX.utils.encode_cell({ r: 0, c: i })] = sheetHeader(headers)[i];
   });
-  ws['!cols'] = [{ wch: 55 }, { wch: 16 }];
+  ws['!cols'] = [{ wch: 55 }, { wch: 16 }, { wch: 18 }];
   ws['!pageSetup'] = { orientation: 'portrait', fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
   ws['!margins'] = { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 };
   ws['!freeze'] = { rowSplit: 1 };
