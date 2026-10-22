@@ -287,44 +287,44 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove, lista = false }) => {
   return (
     <div className="group bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden hover:border-orange-500/40 hover:shadow-lg hover:shadow-black/30 transition-all flex flex-col">
       {/* Imagen del producto */}
-      <div className="relative h-44 bg-[#222] overflow-hidden">
-        {p.imagen ? (
+      {p.imagen && (
+        <div className="relative w-full aspect-square bg-[#222] overflow-hidden">
           <img
             src={p.imagen}
             alt={p.nombre}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
-        ) : null}
 
-        {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-          {p.categoria && (
-            <span
-              className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md backdrop-blur-sm"
-              style={{
-                backgroundColor: p.categoria.color ? `${p.categoria.color}30` : 'rgba(0,0,0,0.5)',
-                color: p.categoria.color || '#ccc',
-                border: `1px solid ${p.categoria.color ? `${p.categoria.color}40` : 'rgba(255,255,255,0.1)'}`,
-              }}
-            >
-              {p.categoria.nombre}
-            </span>
-          )}
-        </div>
+          {/* Badges */}
+          <div className="absolute top-2 left-2 flex flex-col gap-1.5">
+            {p.categoria && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md backdrop-blur-sm"
+                style={{
+                  backgroundColor: p.categoria.color ? `${p.categoria.color}30` : 'rgba(0,0,0,0.5)',
+                  color: p.categoria.color || '#ccc',
+                  border: `1px solid ${p.categoria.color ? `${p.categoria.color}40` : 'rgba(255,255,255,0.1)'}`,
+                }}
+              >
+                {p.categoria.nombre}
+              </span>
+            )}
+          </div>
 
-        <div className="absolute top-3 right-3">
-          {p.stock > 0 ? (
-            <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-orange-400/20 text-orange-400 border border-orange-500/30 backdrop-blur-sm">
-              En stock
-            </span>
-          ) : (
-            <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-red-500/20 text-red-400 border border-red-500/30 backdrop-blur-sm">
-              Sin stock
-            </span>
-          )}
+          <div className="absolute top-2 right-2">
+            {p.stock > 0 ? (
+              <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-orange-400/20 text-orange-400 border border-orange-500/30 backdrop-blur-sm">
+                En stock
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-red-500/20 text-red-400 border border-red-500/30 backdrop-blur-sm">
+                Sin stock
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Info */}
       <div className="p-4 flex flex-col flex-1">
@@ -332,8 +332,19 @@ const ProductCard = ({ p, cart, onAdd, onUpdate, onRemove, lista = false }) => {
           {p.nombre}
         </h3>
 
-        {p.descripcion && (
-          <p className="text-xs text-neutral-500 leading-relaxed mb-3 line-clamp-2">{p.descripcion}</p>
+        {desc && (
+          <div className="mb-3">
+            <p className={`text-xs text-neutral-400 leading-relaxed ${descOpen ? '' : 'line-clamp-2'}`}>
+              {desc}
+            </p>
+            <button
+              type="button"
+              onClick={() => setDescOpen((o) => !o)}
+              className="text-[11px] font-semibold text-orange-400 hover:text-orange-300 mt-0.5"
+            >
+              {descOpen ? 'Ver menos' : 'Ver más'}
+            </button>
+          </div>
         )}
 
         <div className="mt-auto">
@@ -849,7 +860,7 @@ const Catalogo = () => {
           </button>
           <div className={`grid transition-all duration-300 ease-in-out ${openCat === 'destacados' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
             <div className="overflow-hidden">
-              <div className="pt-4 grid grid-cols-1 gap-2">
+              <div className="pt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 items-start">
                 {featuredProducts.map(p => (
                   <ProductCard
                     key={p._id}
@@ -858,7 +869,6 @@ const Catalogo = () => {
                     onAdd={addToCart}
                     onUpdate={updateCartQty}
                     onRemove={removeFromCart}
-                    lista
                   />
                 ))}
               </div>
@@ -870,14 +880,15 @@ const Catalogo = () => {
       {/* ─── Productos por categoria ─── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 scroll-mt-32">
         {loading ? (
-          <div className="grid grid-cols-1 gap-2">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden animate-pulse px-4 py-3 flex items-center justify-between gap-4">
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 bg-[#222] rounded w-1/3" />
-                  <div className="h-3 bg-[#222] rounded w-1/4" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 items-start">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="bg-[#1a1a1a] rounded-xl border border-[#2a2a2a] overflow-hidden animate-pulse">
+                <div className="w-full aspect-square bg-[#222]" />
+                <div className="p-3 space-y-2">
+                  <div className="h-3 bg-[#222] rounded w-3/4" />
+                  <div className="h-3 bg-[#222] rounded w-1/2" />
+                  <div className="h-6 bg-[#222] rounded w-full mt-2" />
                 </div>
-                <div className="h-8 bg-[#222] rounded w-28 shrink-0" />
               </div>
             ))}
           </div>
@@ -907,7 +918,7 @@ const Catalogo = () => {
                   </button>
                   <div className={`grid transition-all duration-300 ease-in-out ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                     <div className="overflow-hidden">
-                      <div className="pt-4 grid grid-cols-1 gap-2">
+                      <div className="pt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 items-start">
                         {sec.items.map(p => (
                           <ProductCard
                             key={p._id}
@@ -916,7 +927,6 @@ const Catalogo = () => {
                             onAdd={addToCart}
                             onUpdate={updateCartQty}
                             onRemove={removeFromCart}
-                            lista
                           />
                         ))}
                       </div>

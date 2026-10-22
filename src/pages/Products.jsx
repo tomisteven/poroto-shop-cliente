@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo } from 'react';
 import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
-import { PlusCircle, Search, Edit2, Trash2, X, PackagePlus, Plus, Minus, Download, CheckSquare, Square, ChevronDown, Sparkles, Loader, Puzzle, Trash, Eye, EyeOff } from 'lucide-react';
+import { PlusCircle, Search, Edit2, Trash2, X, PackagePlus, Plus, Minus, Download, CheckSquare, Square, ChevronDown, Sparkles, Loader, Puzzle, Trash, Eye, EyeOff, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { exportProductsToExcel } from '../utils/exportProductsExcel';
+import { generarEtiquetasPrecios } from '../utils/etiquetas';
 
 const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
 const formatCurrency = (val) => arsFormat.format(val);
@@ -18,7 +19,7 @@ const calculateMargin = (compra, venta) => {
   return (((venta - compra) / compra) * 100).toFixed(2);
 };
 
-const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete, onToggleCatalogo }) {
+const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete, onToggleCatalogo, onPrint }) {
   return (
     <tr className={`hover:bg-stone-800/50 transition-colors ${isSelected ? 'bg-primary/5 border-l-2 border-l-primary' : ''}`}>
       <td className="px-4 py-4">
@@ -73,6 +74,7 @@ const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isA
       </td>
       <td className="px-4 py-4">
         <div className="flex items-center justify-center space-x-3">
+          <button onClick={() => onPrint(p)} className="text-textMuted hover:text-textLight" title="Imprimir etiqueta de precio"><Printer size={16} /></button>
           <button onClick={() => onOpenStock(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={16} /></button>
           <button onClick={() => onOpenEdit(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={16} /></button>
           {isAdmin && (
@@ -89,7 +91,7 @@ const ProductTableRow = React.memo(function ProductTableRow({ p, isSelected, isA
   );
 });
 
-const ProductCardRow = React.memo(function ProductCardRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete, onToggleCatalogo }) {
+const ProductCardRow = React.memo(function ProductCardRow({ p, isSelected, isAdmin, onToggleSelect, onQuickAdjust, onOpenStock, onOpenEdit, onDelete, onToggleCatalogo, onPrint }) {
   return (
     <div className={`p-4 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}>
       <div className="flex items-start gap-3">
@@ -101,6 +103,7 @@ const ProductCardRow = React.memo(function ProductCardRow({ p, isSelected, isAdm
           <div className="flex items-start justify-between gap-2">
             <p className="font-medium text-textLight text-sm">{p.nombre}</p>
             <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => onPrint(p)} className="text-textMuted hover:text-textLight" title="Imprimir etiqueta de precio"><Printer size={17} /></button>
               <button onClick={() => onOpenStock(p)} className="text-emerald-400 hover:text-emerald-300" title="Ajustar Stock"><PackagePlus size={17} /></button>
               <button onClick={() => onOpenEdit(p)} className="text-primary hover:text-primary/80" title="Editar"><Edit2 size={17} /></button>
               {isAdmin && (
@@ -406,6 +409,27 @@ const Products = () => {
   };
 
   const [loadingDesc, setLoadingDesc] = useState(false);
+  const [generandoEtiquetas, setGenerandoEtiquetas] = useState(false);
+
+  const handleGenerarEtiquetas = async () => {
+    try {
+      setGenerandoEtiquetas(true);
+      const { data } = await api.get('/products');
+      const ok = generarEtiquetasPrecios(data);
+      if (ok) toast.success('Etiquetas generadas');
+      else toast.error('No hay productos con precio para generar etiquetas');
+    } catch {
+      toast.error('No se pudieron generar las etiquetas');
+    } finally {
+      setGenerandoEtiquetas(false);
+    }
+  };
+
+  const handleImprimirEtiqueta = (p) => {
+    const safe = String(p.sku || p.nombre || 'producto').replace(/[^a-zA-Z0-9-_]/g, '_').slice(0, 40);
+    const ok = generarEtiquetasPrecios([p], `etiqueta-${safe}.pdf`);
+    if (!ok) toast.error('El producto no tiene precio para generar la etiqueta');
+  };
 
   const handleGenerateDescription = async () => {
     const nombre = formData.nombre.trim();
@@ -721,7 +745,16 @@ const Products = () => {
                    Nuevo Producto
                  </button>
                </>
-            )}
+             )}
+             <button
+               onClick={handleGenerarEtiquetas}
+               disabled={generandoEtiquetas || products.length === 0}
+               className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-4 py-2 rounded-lg transition-colors flex items-center shadow-lg shadow-emerald-500/20 whitespace-nowrap disabled:opacity-50"
+               title="Generar PDF con las etiquetas de precios de todos los productos"
+             >
+               {generandoEtiquetas ? <Loader size={18} className="mr-2 animate-spin" /> : <Printer size={18} className="mr-2" />}
+               Generar Etiquetas
+             </button>
         </div>
       </div>
 
@@ -916,6 +949,7 @@ const Products = () => {
 onOpenEdit={openEditModal}
                       onDelete={handleDelete}
                       onToggleCatalogo={toggleCatalogo}
+                      onPrint={handleImprimirEtiqueta}
                     />
                 ))
               )}
@@ -944,6 +978,7 @@ onOpenEdit={openEditModal}
                 onOpenEdit={openEditModal}
                 onDelete={handleDelete}
                 onToggleCatalogo={toggleCatalogo}
+                onPrint={handleImprimirEtiqueta}
               />
             ))
           )}
