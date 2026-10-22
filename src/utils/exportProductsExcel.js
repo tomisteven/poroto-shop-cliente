@@ -25,7 +25,11 @@ const text = (v, opts = {}) => ({ t: 's', v: String(v ?? ''), s: { alignment: op
 const number = (v, opts = {}) => ({ t: 'n', v: Number(v) || 0, s: { alignment: opts.center ? CENTER : { vertical: 'center' } } });
 
 const sanitizeSheetName = (name) => {
-  const clean = String(name).replace(/[\[\]:*?/\\]/g, ' ').trim().slice(0, 31);
+  const clean = String(name)
+    .replace(/[[\]]/g, ' ')
+    .replace(/[:*?/\\]/g, ' ')
+    .trim()
+    .slice(0, 31);
   return clean || 'Categoría';
 };
 
@@ -134,4 +138,33 @@ export const exportProductsToExcel = async ({ conPrecio = false } = {}) => {
   const nombreArchivo = conPrecio ? `Productos-Con-Precio-${fecha}.xlsx` : `Productos-Lista-Precios-${fecha}.xlsx`;
   XLSX.writeFile(wb, nombreArchivo);
   return { grupos: groups.map((g) => g.nombre), total: lista.length, conPrecio };
+};
+
+// Exportación plana: una sola hoja, solo Producto + Precio Venta, uno debajo del otro.
+export const exportPreciosVentaExcel = async () => {
+  const { data } = await api.get('/products');
+  const lista = (data || [])
+    .filter((p) => (Number(p.precioVenta) || 0) > 0)
+    .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+
+  if (lista.length === 0) throw new Error('No hay productos con precio de venta');
+
+  const headers = ['Producto', 'Precio Venta'];
+  const rows = lista.map((p) => [text(p.nombre), money(p.precioVenta)]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  headers.forEach((_, i) => {
+    ws[XLSX.utils.encode_cell({ r: 0, c: i })] = sheetHeader(headers)[i];
+  });
+  ws['!cols'] = [{ wch: 55 }, { wch: 16 }];
+  ws['!pageSetup'] = { orientation: 'portrait', fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
+  ws['!margins'] = { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 };
+  ws['!freeze'] = { rowSplit: 1 };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Precios de Venta');
+
+  const fecha = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `Precios-Venta-${fecha}.xlsx`);
+  return { total: lista.length };
 };

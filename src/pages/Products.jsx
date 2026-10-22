@@ -3,7 +3,7 @@ import api from '../api/axios';
 import { AuthContext } from '../context/AuthContext';
 import { PlusCircle, Search, Edit2, Trash2, X, PackagePlus, Plus, Minus, Download, CheckSquare, Square, ChevronDown, Sparkles, Loader, Puzzle, Trash, Eye, EyeOff, Printer } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { exportProductsToExcel } from '../utils/exportProductsExcel';
+import { exportProductsToExcel, exportPreciosVentaExcel } from '../utils/exportProductsExcel';
 import { generarEtiquetasPrecios } from '../utils/etiquetas';
 
 const arsFormat = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
@@ -521,6 +521,18 @@ const Products = () => {
     }
   };
 
+  const exportPreciosVenta = async () => {
+    setExporting(true);
+    try {
+      const res = await exportPreciosVentaExcel();
+      toast.success(`Precios de venta exportados: ${res.total} productos`);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || 'Error al exportar precios de venta');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // ── Selección masiva ──────────────────────────────────────────
   const toggleSelect = useCallback((id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -715,6 +727,15 @@ const Products = () => {
             >
               <Download size={18} className="mr-1 md:mr-2" />
               <span className="hidden sm:inline">{exporting ? 'Generando...' : 'Solo con precios'}</span>
+            </button>
+            <button 
+              onClick={exportPreciosVenta}
+              disabled={exporting}
+              className="bg-sky-600/10 hover:bg-sky-600/20 text-sky-400 px-3 md:px-4 py-2 rounded-lg transition-colors flex items-center border border-sky-600/30 shadow-sm whitespace-nowrap disabled:opacity-50"
+              title="Exportar lista plana: producto y precio de venta, uno debajo del otro, sin separar por categoría"
+            >
+              <Download size={18} className="mr-1 md:mr-2" />
+              <span className="hidden sm:inline">{exporting ? 'Generando...' : 'Precios de venta'}</span>
             </button>
             <button
               onClick={() => setFilterOnlyCombos(!filterOnlyCombos)}
